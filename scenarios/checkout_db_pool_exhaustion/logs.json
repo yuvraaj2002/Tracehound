@@ -1,0 +1,363 @@
+[
+  {
+    "id": "log-001",
+    "timestamp": "2026-10-15T13:40:12Z",
+    "service": "payments-api",
+    "level": "INFO",
+    "message": "Started payments-api 2.8.2",
+    "trace_id": null,
+    "attributes": {}
+  },
+  {
+    "id": "log-002",
+    "timestamp": "2026-10-15T13:46:03Z",
+    "service": "checkout-api",
+    "level": "INFO",
+    "message": "POST /checkout 200 in 171ms",
+    "trace_id": null,
+    "attributes": {
+      "status": 200
+    }
+  },
+  {
+    "id": "log-003",
+    "timestamp": "2026-10-15T13:47:21Z",
+    "service": "inventory-api",
+    "level": "WARN",
+    "message": "Cache miss rate above 25% for sku lookups",
+    "trace_id": null,
+    "attributes": {
+      "cache": "sku"
+    }
+  },
+  {
+    "id": "log-004",
+    "timestamp": "2026-10-15T13:48:40Z",
+    "service": "checkout-api",
+    "level": "INFO",
+    "message": "POST /checkout 200 in 188ms",
+    "trace_id": null,
+    "attributes": {
+      "status": 200
+    }
+  },
+  {
+    "id": "log-005",
+    "timestamp": "2026-10-15T13:52:09Z",
+    "service": "checkout-api",
+    "level": "INFO",
+    "message": "Started checkout-api 1.14.0",
+    "trace_id": null,
+    "attributes": {}
+  },
+  {
+    "id": "log-006",
+    "timestamp": "2026-10-15T13:52:10Z",
+    "service": "checkout-api",
+    "level": "INFO",
+    "message": "Database engine configured: pool_size=5 max_overflow=0 pool_timeout=2",
+    "trace_id": null,
+    "attributes": {
+      "pool_size": 5,
+      "max_overflow": 0,
+      "pool_timeout": 2
+    }
+  },
+  {
+    "id": "log-007",
+    "timestamp": "2026-10-15T13:53:30Z",
+    "service": "checkout-api",
+    "level": "INFO",
+    "message": "POST /checkout 200 in 192ms",
+    "trace_id": null,
+    "attributes": {
+      "status": 200
+    }
+  },
+  {
+    "id": "log-008",
+    "timestamp": "2026-10-15T13:55:14Z",
+    "service": "checkout-api",
+    "level": "ERROR",
+    "message": "sqlalchemy.exc.TimeoutError: QueuePool limit of size 5 overflow 0 reached, connection timed out, timeout 2.00",
+    "trace_id": "43f59a85fbc9f87af668a61794a1875d",
+    "attributes": {
+      "route": "POST /checkout"
+    }
+  },
+  {
+    "id": "log-009",
+    "timestamp": "2026-10-15T13:55:14.003000Z",
+    "service": "checkout-api",
+    "level": "ERROR",
+    "message": "POST /checkout 503 in 2011ms",
+    "trace_id": "43f59a85fbc9f87af668a61794a1875d",
+    "attributes": {
+      "status": 503
+    }
+  },
+  {
+    "id": "log-010",
+    "timestamp": "2026-10-15T13:57:48Z",
+    "service": "checkout-api",
+    "level": "ERROR",
+    "message": "sqlalchemy.exc.TimeoutError: QueuePool limit of size 5 overflow 0 reached, connection timed out, timeout 2.00",
+    "trace_id": "587ef3446f3f920c98b8e4cc1bc044fc",
+    "attributes": {
+      "route": "POST /checkout"
+    }
+  },
+  {
+    "id": "log-011",
+    "timestamp": "2026-10-15T13:57:48.003000Z",
+    "service": "checkout-api",
+    "level": "ERROR",
+    "message": "POST /checkout 503 in 2011ms",
+    "trace_id": "587ef3446f3f920c98b8e4cc1bc044fc",
+    "attributes": {
+      "status": 503
+    }
+  },
+  {
+    "id": "log-012",
+    "timestamp": "2026-10-15T13:58:21Z",
+    "service": "inventory-api",
+    "level": "WARN",
+    "message": "Cache miss rate above 25% for sku lookups",
+    "trace_id": null,
+    "attributes": {
+      "cache": "sku"
+    }
+  },
+  {
+    "id": "log-013",
+    "timestamp": "2026-10-15T14:00:58Z",
+    "service": "checkout-api",
+    "level": "ERROR",
+    "message": "sqlalchemy.exc.TimeoutError: QueuePool limit of size 5 overflow 0 reached, connection timed out, timeout 2.00",
+    "trace_id": "82ec9f2dfbf6e16f9b3080d56fb78271",
+    "attributes": {
+      "route": "POST /checkout"
+    }
+  },
+  {
+    "id": "log-014",
+    "timestamp": "2026-10-15T14:00:58.003000Z",
+    "service": "checkout-api",
+    "level": "ERROR",
+    "message": "POST /checkout 503 in 2011ms",
+    "trace_id": "82ec9f2dfbf6e16f9b3080d56fb78271",
+    "attributes": {
+      "status": 503
+    }
+  },
+  {
+    "id": "log-015",
+    "timestamp": "2026-10-15T14:03:42Z",
+    "service": "checkout-api",
+    "level": "ERROR",
+    "message": "sqlalchemy.exc.TimeoutError: QueuePool limit of size 5 overflow 0 reached, connection timed out, timeout 2.00",
+    "trace_id": "30a900ad939b462de645f129629c2ae3",
+    "attributes": {
+      "route": "POST /checkout"
+    }
+  },
+  {
+    "id": "log-016",
+    "timestamp": "2026-10-15T14:03:42.003000Z",
+    "service": "checkout-api",
+    "level": "ERROR",
+    "message": "POST /checkout 503 in 2011ms",
+    "trace_id": "30a900ad939b462de645f129629c2ae3",
+    "attributes": {
+      "status": 503
+    }
+  },
+  {
+    "id": "log-017",
+    "timestamp": "2026-10-15T14:04:02Z",
+    "service": "payments-api",
+    "level": "INFO",
+    "message": "POST /charges 201 in 44ms",
+    "trace_id": null,
+    "attributes": {
+      "status": 201
+    }
+  },
+  {
+    "id": "log-018",
+    "timestamp": "2026-10-15T14:06:21Z",
+    "service": "inventory-api",
+    "level": "WARN",
+    "message": "Cache miss rate above 25% for sku lookups",
+    "trace_id": null,
+    "attributes": {
+      "cache": "sku"
+    }
+  },
+  {
+    "id": "log-019",
+    "timestamp": "2026-10-15T14:06:44Z",
+    "service": "checkout-api",
+    "level": "ERROR",
+    "message": "sqlalchemy.exc.TimeoutError: QueuePool limit of size 5 overflow 0 reached, connection timed out, timeout 2.00",
+    "trace_id": "006ed6e36fa17735b572f3d00b5cea6a",
+    "attributes": {
+      "route": "POST /checkout"
+    }
+  },
+  {
+    "id": "log-020",
+    "timestamp": "2026-10-15T14:06:44.003000Z",
+    "service": "checkout-api",
+    "level": "ERROR",
+    "message": "POST /checkout 503 in 2011ms",
+    "trace_id": "006ed6e36fa17735b572f3d00b5cea6a",
+    "attributes": {
+      "status": 503
+    }
+  },
+  {
+    "id": "log-021",
+    "timestamp": "2026-10-15T14:10:20Z",
+    "service": "checkout-api",
+    "level": "ERROR",
+    "message": "sqlalchemy.exc.TimeoutError: QueuePool limit of size 5 overflow 0 reached, connection timed out, timeout 2.00",
+    "trace_id": "afd5dea589d7fd6cce777f00ecf27e76",
+    "attributes": {
+      "route": "POST /checkout"
+    }
+  },
+  {
+    "id": "log-022",
+    "timestamp": "2026-10-15T14:10:20.003000Z",
+    "service": "checkout-api",
+    "level": "ERROR",
+    "message": "POST /checkout 503 in 2011ms",
+    "trace_id": "afd5dea589d7fd6cce777f00ecf27e76",
+    "attributes": {
+      "status": 503
+    }
+  },
+  {
+    "id": "log-023",
+    "timestamp": "2026-10-15T14:14:15Z",
+    "service": "checkout-api",
+    "level": "ERROR",
+    "message": "sqlalchemy.exc.TimeoutError: QueuePool limit of size 5 overflow 0 reached, connection timed out, timeout 2.00",
+    "trace_id": "11e9cdaa6e6981a35d3d9e563270e4fa",
+    "attributes": {
+      "route": "POST /checkout"
+    }
+  },
+  {
+    "id": "log-024",
+    "timestamp": "2026-10-15T14:14:15.003000Z",
+    "service": "checkout-api",
+    "level": "ERROR",
+    "message": "POST /checkout 503 in 2011ms",
+    "trace_id": "11e9cdaa6e6981a35d3d9e563270e4fa",
+    "attributes": {
+      "status": 503
+    }
+  },
+  {
+    "id": "log-025",
+    "timestamp": "2026-10-15T14:18:10Z",
+    "service": "checkout-api",
+    "level": "ERROR",
+    "message": "sqlalchemy.exc.TimeoutError: QueuePool limit of size 5 overflow 0 reached, connection timed out, timeout 2.00",
+    "trace_id": "505cc6869f871ce75487fd4febb7a385",
+    "attributes": {
+      "route": "POST /checkout"
+    }
+  },
+  {
+    "id": "log-026",
+    "timestamp": "2026-10-15T14:18:10.003000Z",
+    "service": "checkout-api",
+    "level": "ERROR",
+    "message": "POST /checkout 503 in 2011ms",
+    "trace_id": "505cc6869f871ce75487fd4febb7a385",
+    "attributes": {
+      "status": 503
+    }
+  },
+  {
+    "id": "log-027",
+    "timestamp": "2026-10-15T14:19:21Z",
+    "service": "inventory-api",
+    "level": "WARN",
+    "message": "Cache miss rate above 25% for sku lookups",
+    "trace_id": null,
+    "attributes": {
+      "cache": "sku"
+    }
+  },
+  {
+    "id": "log-028",
+    "timestamp": "2026-10-15T14:22:04Z",
+    "service": "checkout-api",
+    "level": "ERROR",
+    "message": "sqlalchemy.exc.TimeoutError: QueuePool limit of size 5 overflow 0 reached, connection timed out, timeout 2.00",
+    "trace_id": "e6697833b841d0a01fe771d6d9178793",
+    "attributes": {
+      "route": "POST /checkout"
+    }
+  },
+  {
+    "id": "log-029",
+    "timestamp": "2026-10-15T14:22:04.003000Z",
+    "service": "checkout-api",
+    "level": "ERROR",
+    "message": "POST /checkout 503 in 2011ms",
+    "trace_id": "e6697833b841d0a01fe771d6d9178793",
+    "attributes": {
+      "status": 503
+    }
+  },
+  {
+    "id": "log-030",
+    "timestamp": "2026-10-15T14:25:12Z",
+    "service": "checkout-api",
+    "level": "ERROR",
+    "message": "sqlalchemy.exc.TimeoutError: QueuePool limit of size 5 overflow 0 reached, connection timed out, timeout 2.00",
+    "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+    "attributes": {
+      "route": "POST /checkout"
+    }
+  },
+  {
+    "id": "log-031",
+    "timestamp": "2026-10-15T14:25:12.003000Z",
+    "service": "checkout-api",
+    "level": "ERROR",
+    "message": "POST /checkout 503 in 2011ms",
+    "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+    "attributes": {
+      "status": 503
+    }
+  },
+  {
+    "id": "log-032",
+    "timestamp": "2026-10-15T14:28:46Z",
+    "service": "checkout-api",
+    "level": "ERROR",
+    "message": "sqlalchemy.exc.TimeoutError: QueuePool limit of size 5 overflow 0 reached, connection timed out, timeout 2.00",
+    "trace_id": "5380b904688c7015aab97e494f2d4796",
+    "attributes": {
+      "route": "POST /checkout"
+    }
+  },
+  {
+    "id": "log-033",
+    "timestamp": "2026-10-15T14:28:46.003000Z",
+    "service": "checkout-api",
+    "level": "ERROR",
+    "message": "POST /checkout 503 in 2011ms",
+    "trace_id": "5380b904688c7015aab97e494f2d4796",
+    "attributes": {
+      "status": 503
+    }
+  }
+]

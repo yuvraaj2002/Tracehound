@@ -18,8 +18,8 @@ src/tracehound/
   helpers/       per-entity DB queries (incident_helper, ...)
   api/           HTTP API
 simulation/      synthetic services that generate seeded faults
-fixtures/        pinned telemetry snapshots per scenario
-benchmarks/      ground-truth annotations (never shown to agents)
+scenarios/       pinned telemetry per scenario (what agents may read)
+ground_truth/    root-cause answers per scenario (never shown to agents)
 docs/adr/        architecture decision records
 tests/           unit and integration tests
 ```

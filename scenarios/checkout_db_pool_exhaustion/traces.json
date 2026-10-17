@@ -1,0 +1,58 @@
+[
+  {
+    "id": "trc-001",
+    "trace_id": "0af7651916cd43dd8448eb211c80319c",
+    "span_id": "b7ad6b7169203331",
+    "parent_span_id": null,
+    "service": "checkout-api",
+    "name": "POST /checkout",
+    "start": "2026-10-15T13:48:39.812000Z",
+    "duration_ms": 188,
+    "status": "ok"
+  },
+  {
+    "id": "trc-002",
+    "trace_id": "0af7651916cd43dd8448eb211c80319c",
+    "span_id": "00f067aa0ba902b7",
+    "parent_span_id": "b7ad6b7169203331",
+    "service": "checkout-api",
+    "name": "db.pool.acquire",
+    "start": "2026-10-15T13:48:39.814000Z",
+    "duration_ms": 1,
+    "status": "ok"
+  },
+  {
+    "id": "trc-003",
+    "trace_id": "0af7651916cd43dd8448eb211c80319c",
+    "span_id": "53995c3f42cd8ad8",
+    "parent_span_id": "b7ad6b7169203331",
+    "service": "payments-api",
+    "name": "POST /charges",
+    "start": "2026-10-15T13:48:39.872000Z",
+    "duration_ms": 46,
+    "status": "ok"
+  },
+  {
+    "id": "trc-004",
+    "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+    "span_id": "a3ce929d0e0e4736",
+    "parent_span_id": null,
+    "service": "checkout-api",
+    "name": "POST /checkout",
+    "start": "2026-10-15T14:25:09.989000Z",
+    "duration_ms": 2011,
+    "status": "error"
+  },
+  {
+    "id": "trc-005",
+    "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+    "span_id": "e457b5a2e4d86bd1",
+    "parent_span_id": "a3ce929d0e0e4736",
+    "service": "checkout-api",
+    "name": "db.pool.acquire",
+    "start": "2026-10-15T14:25:09.992000Z",
+    "duration_ms": 2003,
+    "status": "error",
+    "error": "TimeoutError: QueuePool limit of size 5 overflow 0 reached"
+  }
+]

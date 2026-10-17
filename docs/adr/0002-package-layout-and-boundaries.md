@@ -25,8 +25,8 @@ Use a `src/` layout managed by `uv`, with one package `tracehound` split into:
 Outside the package:
 
 - `simulation/` — synthetic microservices and fault toggles that generate telemetry.
-- `fixtures/scenarios/` — pinned telemetry snapshots that agents may read.
-- `benchmarks/ground_truth/` — causal annotations, read only by the evaluator.
+- `scenarios/<id>/` — pinned telemetry (alert, logs, metrics, traces, deploys, topology) that agents may read.
+- `ground_truth/<id>.json` — root cause and evidence annotations, read only by the evaluator.
 
 ## Consequences
 
