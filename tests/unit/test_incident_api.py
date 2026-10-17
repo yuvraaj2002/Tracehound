@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from tracehound.api.app import create_app
+from tracehound.api.dependencies import get_incident_helper
 
 VALID = {
     "service_id": "checkout-api",
@@ -75,3 +76,45 @@ def test_rejected_request_is_not_persisted(client: TestClient, db_path: Path) ->
     client.post("/v1/incidents", json={**VALID, "severity": "urgent"})
     with sqlite3.connect(db_path) as conn:
         assert conn.execute("SELECT COUNT(*) FROM incidents").fetchone()[0] == 0
+
+
+def test_list_incidents_is_empty_initially(client: TestClient) -> None:
+    response = client.get("/v1/incidents")
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_list_incidents_returns_all_newest_first(client: TestClient) -> None:
+    first = client.post("/v1/incidents", json=VALID).json()
+    second = client.post("/v1/incidents", json={**VALID, "service_id": "payments"}).json()
+    response = client.get("/v1/incidents")
+    assert response.status_code == 200
+    body = response.json()
+    assert [item["id"] for item in body] == [second["incident_id"], first["incident_id"]]
+    assert body[0]["service_id"] == "payments"
+    assert body[1]["severity"] == "high"
+    assert body[1]["state"] == "CREATED"
+    assert body[1]["window_start"] == "2026-10-17T14:00:00Z"
+
+
+def test_database_error_returns_500(client: TestClient, db_path: Path) -> None:
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("DROP TABLE incidents")
+    assert client.post("/v1/incidents", json=VALID).status_code == 500
+    response = client.get("/v1/incidents")
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Could not load incidents."}
+
+
+def test_helper_dependency_can_be_overridden(db_path: Path) -> None:
+    class FakeHelper:
+        def list_all(self) -> list[object]:
+            return []
+
+    app = create_app(db_path)
+    client = TestClient(app)
+    client.post("/v1/incidents", json=VALID)
+    assert len(client.get("/v1/incidents").json()) == 1
+
+    app.dependency_overrides[get_incident_helper] = FakeHelper
+    assert client.get("/v1/incidents").json() == []

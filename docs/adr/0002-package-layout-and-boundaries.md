@@ -18,7 +18,8 @@ Use a `src/` layout managed by `uv`, with one package `tracehound` split into:
 | `tools`        | Read-only telemetry interfaces and adapters                 | `schemas`                |
 | `agents`       | Specialist agents                                           | `schemas`, `tools`       |
 | `orchestrator` | Workflow state machine, budgets, checkpoints                | `schemas`, `agents`      |
-| `store`        | Persistence                                                 | `schemas`                |
+| `db`           | Local SQLite setup: connections, schema                     | nothing internal         |
+| `helpers`      | Per-entity DB queries (`incident_helper`, ...)              | `schemas`, `db`          |
 | `api`          | HTTP layer                                                  | everything above         |
 
 Outside the package:

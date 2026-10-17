@@ -14,7 +14,8 @@ src/tracehound/
   tools/         read-only telemetry interfaces and adapters
   agents/        specialist agents
   orchestrator/  workflow state machine, budgets, checkpoints
-  store/         persistence
+  db/            local SQLite setup: connections, schema
+  helpers/       per-entity DB queries (incident_helper, ...)
   api/           HTTP API
 simulation/      synthetic services that generate seeded faults
 fixtures/        pinned telemetry snapshots per scenario

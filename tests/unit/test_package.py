@@ -8,5 +8,5 @@ def test_version_is_exposed() -> None:
 
 
 def test_subpackages_import() -> None:
-    for name in ("schemas", "tools", "agents", "orchestrator", "store", "api"):
+    for name in ("schemas", "tools", "agents", "orchestrator", "db", "helpers", "api"):
         importlib.import_module(f"tracehound.{name}")

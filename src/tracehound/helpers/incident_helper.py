@@ -1,48 +1,25 @@
-"""SQLite-backed incident persistence."""
+"""Incident reads and writes against the local SQLite database."""
 
-import sqlite3
 from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from tracehound.schemas import IncidentAccepted, IncidentCreateRequest
-
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS incidents (
-    id           TEXT PRIMARY KEY,
-    run_id       TEXT NOT NULL,
-    service_id   TEXT NOT NULL,
-    symptom      TEXT NOT NULL,
-    severity     TEXT NOT NULL,
-    window_start TEXT NOT NULL,
-    window_end   TEXT NOT NULL,
-    trace_id     TEXT,
-    state        TEXT NOT NULL DEFAULT 'CREATED',
-    created_at   TEXT NOT NULL,
-    updated_at   TEXT NOT NULL
-)
-"""
+from tracehound.db import connect
+from tracehound.schemas import IncidentAccepted, IncidentCreateRequest, IncidentRecord
 
 
-class IncidentStore:
-    """Stores incidents in a local SQLite file. Timestamps are ISO-8601 UTC strings."""
+class IncidentHelper:
+    """Incident queries for one SQLite file. Timestamps are stored as ISO-8601 UTC strings."""
 
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as conn:
-            conn.execute(_SCHEMA)
-
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self._path)
-        conn.row_factory = sqlite3.Row
-        return conn
+    def __init__(self, db_path: Path) -> None:
+        self._db_path = db_path
 
     def create(self, request: IncidentCreateRequest) -> IncidentAccepted:
+        """Insert a new incident in the CREATED state."""
         incident_id, run_id = uuid4(), uuid4()
         now = datetime.now(UTC).isoformat()
-        with closing(self._connect()) as conn, conn:
+        with closing(connect(self._db_path)) as conn, conn:
             conn.execute(
                 "INSERT INTO incidents (id, run_id, service_id, symptom, severity, window_start,"
                 " window_end, trace_id, state, created_at, updated_at)"
@@ -66,9 +43,15 @@ class IncidentStore:
             status_url=f"/v1/incidents/{incident_id}",
         )
 
-    def get(self, incident_id: UUID) -> dict[str, str | None] | None:
-        with closing(self._connect()) as conn:
+    def get(self, incident_id: UUID) -> IncidentRecord | None:
+        with closing(connect(self._db_path)) as conn:
             row = conn.execute(
                 "SELECT * FROM incidents WHERE id = ?", (str(incident_id),)
             ).fetchone()
-        return dict(row) if row else None
+        return IncidentRecord.model_validate(dict(row)) if row else None
+
+    def list_all(self) -> list[IncidentRecord]:
+        """Return every incident, newest first."""
+        with closing(connect(self._db_path)) as conn:
+            rows = conn.execute("SELECT * FROM incidents ORDER BY created_at DESC").fetchall()
+        return [IncidentRecord.model_validate(dict(row)) for row in rows]

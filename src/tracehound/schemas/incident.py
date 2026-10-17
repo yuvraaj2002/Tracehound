@@ -45,3 +45,19 @@ class IncidentAccepted(BaseModel):
     incident_id: UUID
     run_id: UUID
     status_url: str
+
+
+class IncidentRecord(BaseModel):
+    """A stored incident, as returned by ``GET /v1/incidents``."""
+
+    id: UUID
+    run_id: UUID
+    service_id: str
+    symptom: str
+    severity: Severity
+    window_start: AwareDatetime
+    window_end: AwareDatetime
+    trace_id: str | None
+    state: str
+    created_at: AwareDatetime
+    updated_at: AwareDatetime
