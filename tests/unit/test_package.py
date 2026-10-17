@@ -1,0 +1,12 @@
+import importlib
+
+import tracehound
+
+
+def test_version_is_exposed() -> None:
+    assert tracehound.__version__ == "0.1.0"
+
+
+def test_subpackages_import() -> None:
+    for name in ("domain", "tools", "agents", "orchestrator", "store", "api"):
+        importlib.import_module(f"tracehound.{name}")
