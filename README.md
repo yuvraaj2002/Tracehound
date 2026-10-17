@@ -10,7 +10,7 @@ produces an auditable, cited incident report.
 
 ```
 src/tracehound/
-  domain/        typed contracts: incidents, evidence, hypotheses, states
+  schemas/       typed contracts: incidents, evidence, hypotheses, states
   tools/         read-only telemetry interfaces and adapters
   agents/        specialist agents
   orchestrator/  workflow state machine, budgets, checkpoints

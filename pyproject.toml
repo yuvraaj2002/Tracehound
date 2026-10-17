@@ -5,7 +5,9 @@ description = "Evidence-first multi-agent incident investigation for Python serv
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "fastapi>=0.143.3",
     "pydantic>=2.14.1",
+    "uvicorn>=0.54.0",
 ]
 
 [build-system]
@@ -29,6 +31,7 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "pytest>=9.1.1",
     "ruff>=0.17.1",
 ]
