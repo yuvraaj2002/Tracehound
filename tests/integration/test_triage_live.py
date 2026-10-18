@@ -1,14 +1,13 @@
-"""Calls the real model. Run with: ANTHROPIC_API_KEY=... uv run pytest -m integration"""
+"""Calls the local Ollama model. Run with: uv run pytest -m integration -s"""
 
 import json
-import os
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
 
-from tracehound.agents.llm import AnthropicLLM
+from tracehound.agents.llm import OllamaLLM
 from tracehound.agents.triage import TriageAgent
 from tracehound.schemas import IncidentRecord
 
@@ -16,7 +15,6 @@ SCENARIO = Path(__file__).resolve().parents[2] / "scenarios" / "checkout_db_pool
 
 pytestmark = [
     pytest.mark.integration,
-    pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY"), reason="needs ANTHROPIC_API_KEY"),
 ]
 
 
@@ -26,5 +24,5 @@ def test_live_triage_scopes_checkout_incident() -> None:
     incident = IncidentRecord(
         id=uuid4(), run_id=uuid4(), state="created", created_at=now, updated_at=now, **alert
     )
-    scope = TriageAgent(SCENARIO, AnthropicLLM())(incident)
+    scope = TriageAgent(SCENARIO, OllamaLLM())(incident)
     assert {"checkout-api", "orders-db"} <= set(scope.services)

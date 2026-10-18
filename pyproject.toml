@@ -5,10 +5,13 @@ description = "Evidence-first multi-agent incident investigation for Python serv
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "anthropic>=1.15.0",
     "fastapi>=0.143.3",
     "langgraph>=1.2.16",
+    "ollama>=0.6.3",
     "pydantic>=2.14.1",
+    "tenacity>=9.2.1",
+    "torch>=2.14.1",
+    "transformers>=5.20.1",
     "uvicorn>=0.54.0",
 ]
 
