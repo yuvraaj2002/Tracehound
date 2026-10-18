@@ -10,6 +10,7 @@ from pydantic import BaseModel, ValidationError
 
 from tracehound.agents.dependency import DependencyAgent, DependencyAnswer
 from tracehound.agents.deploy import DeployAgent, DeployAnswer
+from tracehound.agents.hypothesis import HypothesisAgent, HypothesisAnswer
 from tracehound.agents.inference import LLMError, OllamaLLM
 from tracehound.agents.logs import LogsAgent, LogsAnswer
 from tracehound.agents.metrics import MetricsAgent, MetricsAnswer
@@ -167,6 +168,22 @@ def test_graph_runs_triage_then_specialists_and_checkpoints(incident: IncidentRe
     dependency = DependencyAnswer.model_validate(
         {"summary": "Waiting on pool", "findings": [{"claim": "t", "span_ids": ["trc-002"]}]}
     )
+    hypotheses = HypothesisAnswer.model_validate(
+        {
+            "hypotheses": [
+                {
+                    "statement": "dep-002 shrank the checkout-api DB pool",
+                    "mechanism": "m",
+                    "supporting_evidence_ids": ["dep-002", "log-008"],
+                    "contradicting_evidence_ids": [],
+                    "status": "supported",
+                    "confidence": "high",
+                    "confidence_rationale": "r",
+                    "verification_steps": [],
+                }
+            ]
+        }
+    )
     graph = build_graph(
         TriageAgent(SCENARIO, FakeLLM(_decision(CANDIDATES))),
         {
@@ -175,6 +192,7 @@ def test_graph_runs_triage_then_specialists_and_checkpoints(incident: IncidentRe
             "deploy": DeployAgent(SCENARIO, FakeLLM(deploy)),
             "dependency": DependencyAgent(SCENARIO, FakeLLM(dependency)),
         },
+        HypothesisAgent(FakeLLM(hypotheses)),
         checkpointer=InMemorySaver(serde=SERDE),
     )
     config = {"configurable": {"thread_id": str(incident.run_id)}}
@@ -188,6 +206,7 @@ def test_graph_runs_triage_then_specialists_and_checkpoints(incident: IncidentRe
     ]
     assert set(result["evidence"]) == {"dep-002", "log-008", "met-002", "trc-002"}
     assert result["evidence"]["met-002"].run_id == incident.run_id
+    assert [h.supporting_evidence_ids for h in result["hypotheses"]] == [["dep-002", "log-008"]]
     assert graph.get_state(config).values == result
 
 

@@ -18,6 +18,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from tracehound.agents.dependency import DependencyAgent
 from tracehound.agents.deploy import DeployAgent
+from tracehound.agents.hypothesis import HypothesisAgent
 from tracehound.agents.inference import OllamaLLM
 from tracehound.agents.logs import LogsAgent
 from tracehound.agents.metrics import MetricsAgent
@@ -94,6 +95,7 @@ def run(scenario: Path, alert: dict, now: datetime, run_dir: Path) -> None:
             "deploy": DeployAgent(scenario, llm),
             "dependency": DependencyAgent(scenario, llm),
         },
+        HypothesisAgent(llm),
         checkpointer=InMemorySaver(serde=SERDE),
     )
     config = {"configurable": {"thread_id": str(incident.run_id)}}
@@ -107,6 +109,15 @@ def run(scenario: Path, alert: dict, now: datetime, run_dir: Path) -> None:
     print("\n===== EVIDENCE IN GRAPH STATE =====")
     for item in state["evidence"].values():
         print(f"{item.id}  {item.event_time:%H:%M:%S}  {item.service}  {item.excerpt}")
+
+    print("\n===== HYPOTHESES IN GRAPH STATE =====")
+    for h in state["hypotheses"]:
+        print(f"[{h.status} / {h.confidence}] {h.statement}")
+        print(f"  mechanism: {h.mechanism}")
+        print(f"  supports: {', '.join(h.supporting_evidence_ids) or '-'}")
+        print(f"  contradicts: {', '.join(h.contradicting_evidence_ids) or '-'}")
+        for step in h.verification_steps:
+            print(f"  verify: {step.check} -> expect {step.expected_if_true}")
 
     saved = {
         key: (
