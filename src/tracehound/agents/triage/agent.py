@@ -5,7 +5,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from tracehound.agents.llm import StructuredLLM
+from tracehound.agents.inference import StructuredLLM
 from tracehound.agents.triage.prompt import SYSTEM_PROMPT
 from tracehound.schemas.incident import IncidentRecord
 from tracehound.schemas.telemetry import Deploy, Edge, ServiceNode

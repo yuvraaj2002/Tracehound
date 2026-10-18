@@ -1,6 +1,7 @@
 """Typed, framework-agnostic contracts: incidents, evidence, hypotheses, workflow states."""
 
 from tracehound.schemas.evidence import Evidence, EvidenceId, EvidenceSource, hash_payload
+from tracehound.schemas.finding import Finding, SpecialistReport
 from tracehound.schemas.hypothesis import (
     ConfidenceBand,
     Hypothesis,
@@ -27,6 +28,7 @@ __all__ = [
     "Evidence",
     "EvidenceId",
     "EvidenceSource",
+    "Finding",
     "Hypothesis",
     "HypothesisStatus",
     "IncidentAccepted",
@@ -36,6 +38,7 @@ __all__ = [
     "ServiceNode",
     "Severity",
     "Specialist",
+    "SpecialistReport",
     "SpecialistTask",
     "Topology",
     "VerificationStep",

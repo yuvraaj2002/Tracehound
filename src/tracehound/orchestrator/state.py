@@ -1,10 +1,12 @@
 """LangGraph state shared by every node of an investigation."""
 
+import operator
 from typing import Annotated, Required, TypedDict
 
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 
 from tracehound.schemas.evidence import Evidence, EvidenceId
+from tracehound.schemas.finding import Finding
 from tracehound.schemas.hypothesis import Hypothesis
 from tracehound.schemas.incident import IncidentRecord
 from tracehound.schemas.triage import InvestigationScope
@@ -21,6 +23,7 @@ class InvestigationState(TypedDict, total=False):
     incident: Required[IncidentRecord]
     scope: InvestigationScope
     evidence: Annotated[dict[EvidenceId, Evidence], keep_first]
+    findings: Annotated[list[Finding], operator.add]
     hypotheses: list[Hypothesis]
 
 
@@ -33,6 +36,7 @@ SERDE = JsonPlusSerializer(
         ("tracehound.schemas.triage", "Specialist"),
         ("tracehound.schemas.evidence", "Evidence"),
         ("tracehound.schemas.evidence", "EvidenceSource"),
+        ("tracehound.schemas.finding", "Finding"),
         ("tracehound.schemas.hypothesis", "Hypothesis"),
         ("tracehound.schemas.hypothesis", "HypothesisStatus"),
         ("tracehound.schemas.hypothesis", "ConfidenceBand"),

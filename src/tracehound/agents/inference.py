@@ -22,7 +22,7 @@ class StructuredLLM(Protocol):
 
 
 class OllamaLLM:
-    def __init__(self, model: str = "lfm2.5-thinking") -> None:
+    def __init__(self, model: str = "LiquidAI/lfm2.5-1.2b-instruct") -> None:
         self.model = model
 
     def generate(self, *, system: str, user: str, schema: type[T]) -> T:

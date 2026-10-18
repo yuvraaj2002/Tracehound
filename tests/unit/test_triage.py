@@ -8,7 +8,8 @@ import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 from pydantic import BaseModel, ValidationError
 
-from tracehound.agents.llm import LLMError, OllamaLLM
+from tracehound.agents.inference import LLMError, OllamaLLM
+from tracehound.agents.logs import LogsAgent, LogsAnswer
 from tracehound.agents.triage import TriageAgent, TriageDecision
 from tracehound.agents.triage.agent import TaskQuestion
 from tracehound.orchestrator.graph import build_graph
@@ -147,15 +148,21 @@ def test_evidence_reducer_keeps_first_copy() -> None:
     assert keep_first({"a": 1}, {"a": 2, "b": 3}) == {"a": 1, "b": 3}  # type: ignore[dict-item]
 
 
-def test_graph_runs_triage_and_checkpoints(incident: IncidentRecord) -> None:
+def test_graph_runs_triage_then_logs_and_checkpoints(incident: IncidentRecord) -> None:
+    answer = LogsAnswer.model_validate(
+        {"summary": "Pool timeouts", "findings": [{"claim": "c", "log_ids": ["log-008"]}]}
+    )
     graph = build_graph(
         TriageAgent(SCENARIO, FakeLLM(_decision(CANDIDATES))),
+        LogsAgent(SCENARIO, FakeLLM(answer)),
         checkpointer=InMemorySaver(serde=SERDE),
     )
     config = {"configurable": {"thread_id": str(incident.run_id)}}
     result = graph.invoke({"incident": incident}, config)
     assert isinstance(result["scope"], InvestigationScope)
-    assert graph.get_state(config).values["scope"] == result["scope"]
+    assert [f.evidence_ids for f in result["findings"]] == [["log-008"]]
+    assert result["evidence"]["log-008"].run_id == incident.run_id
+    assert graph.get_state(config).values == result
 
 
 def test_generate_retries_then_raises_llm_error(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -165,7 +172,7 @@ def test_generate_retries_then_raises_llm_error(monkeypatch: pytest.MonkeyPatch)
         calls.append(kwargs)
         raise ConnectionError("ollama not running")
 
-    monkeypatch.setattr("tracehound.agents.llm.ollama.chat", down)
+    monkeypatch.setattr("tracehound.agents.inference.ollama.chat", down)
     monkeypatch.setattr(OllamaLLM._chat.retry, "sleep", lambda _: None)
     with pytest.raises(LLMError, match="failed after retries"):
         OllamaLLM().generate(system="s", user="u", schema=TriageDecision)

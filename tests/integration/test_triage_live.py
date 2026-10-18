@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 
-from tracehound.agents.llm import OllamaLLM
+from tracehound.agents.inference import OllamaLLM
 from tracehound.agents.triage import TriageAgent
 from tracehound.schemas import IncidentRecord
 

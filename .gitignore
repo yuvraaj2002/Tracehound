@@ -19,3 +19,9 @@ wheels/
 
 # Local SQLite database
 data/
+
+.claude/
+docs/build-in-public/
+
+# Saved pipeline runs
+runs/
