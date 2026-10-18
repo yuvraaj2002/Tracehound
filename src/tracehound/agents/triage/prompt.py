@@ -1,6 +1,6 @@
 """Triage prompt. Bump PROMPT_VERSION on any change so runs stay comparable."""
 
-PROMPT_VERSION = "triage/v3"
+PROMPT_VERSION = "triage/v4"
 
 SYSTEM_PROMPT = """\
 You are the triage step of Tracehound, a system that investigates production incidents for \
@@ -20,8 +20,9 @@ dependency when a fault in it could produce the symptom, or when it was deployed
 change window. When unsure, keep it: a missing service can hide the root cause, while an extra \
 one only costs a few queries. If you drop a candidate, say why in the rationale.
 
-2. One question for each of the four specialists. Every specialist can query all the \
-in-scope services. Make the question specific: use the service names, deploy IDs, trace ID \
+2. One question for each of the four specialists: logs_question, metrics_question, \
+deploy_question and dependency_question. Every specialist can query all the in-scope \
+services. Make the question specific: use the service names, deploy IDs, trace ID \
 and time ranges from the input, and say what the specialist should look for and what would \
 rule a possibility in or out.
 

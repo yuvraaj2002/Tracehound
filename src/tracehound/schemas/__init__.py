@@ -14,7 +14,7 @@ from tracehound.schemas.incident import (
     IncidentRecord,
     Severity,
 )
-from tracehound.schemas.telemetry import Deploy, Edge, ServiceNode, Topology
+from tracehound.schemas.telemetry import Deploy, Edge, ServiceNode, Span, Topology
 from tracehound.schemas.triage import (
     InvestigationScope,
     Specialist,
@@ -37,6 +37,7 @@ __all__ = [
     "InvestigationScope",
     "ServiceNode",
     "Severity",
+    "Span",
     "Specialist",
     "SpecialistReport",
     "SpecialistTask",

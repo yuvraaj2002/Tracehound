@@ -8,10 +8,12 @@ import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 from pydantic import BaseModel, ValidationError
 
+from tracehound.agents.dependency import DependencyAgent, DependencyAnswer
+from tracehound.agents.deploy import DeployAgent, DeployAnswer
 from tracehound.agents.inference import LLMError, OllamaLLM
 from tracehound.agents.logs import LogsAgent, LogsAnswer
+from tracehound.agents.metrics import MetricsAgent, MetricsAnswer
 from tracehound.agents.triage import TriageAgent, TriageDecision
-from tracehound.agents.triage.agent import TaskQuestion
 from tracehound.orchestrator.graph import build_graph
 from tracehound.orchestrator.state import SERDE, keep_first
 from tracehound.schemas import (
@@ -47,10 +49,8 @@ def incident() -> IncidentRecord:
 
 
 def _decision(services: list[str], **override: Any) -> TriageDecision:
-    tasks = [TaskQuestion(specialist=s, question=f"{s} question") for s in Specialist]
-    return TriageDecision(
-        **{"services": services, "tasks": tasks, "rationale": "because", **override}
-    )
+    questions = {f"{s}_question": f"{s} question" for s in Specialist}
+    return TriageDecision(**{"services": services, **questions, "rationale": "because", **override})
 
 
 def test_tools_return_neighbors_and_deploys() -> None:
@@ -114,14 +114,20 @@ def test_alert_service_is_always_in_scope(incident: IncidentRecord) -> None:
     assert all(task.services == scope.services for task in scope.tasks)
 
 
+def test_decision_requires_every_specialist_question() -> None:
+    data = _decision(["checkout-api"]).model_dump()
+    del data["dependency_question"]
+    with pytest.raises(ValidationError, match="dependency_question"):
+        TriageDecision.model_validate(data)
+
+
 @pytest.mark.parametrize(
     "result",
     [
         LLMError("model down"),
         _decision(["checkout-api", "billing-api"]),  # hallucinated service
-        _decision(["checkout-api"], tasks=[]),  # no specialist tasks
     ],
-    ids=["model-error", "unknown-service", "missing-tasks"],
+    ids=["model-error", "unknown-service"],
 )
 def test_bad_llm_result_raises(incident: IncidentRecord, result: BaseModel | Exception) -> None:
     with pytest.raises((LLMError, ValueError)):
@@ -148,20 +154,40 @@ def test_evidence_reducer_keeps_first_copy() -> None:
     assert keep_first({"a": 1}, {"a": 2, "b": 3}) == {"a": 1, "b": 3}  # type: ignore[dict-item]
 
 
-def test_graph_runs_triage_then_logs_and_checkpoints(incident: IncidentRecord) -> None:
-    answer = LogsAnswer.model_validate(
+def test_graph_runs_triage_then_specialists_and_checkpoints(incident: IncidentRecord) -> None:
+    logs = LogsAnswer.model_validate(
         {"summary": "Pool timeouts", "findings": [{"claim": "c", "log_ids": ["log-008"]}]}
+    )
+    metrics = MetricsAnswer.model_validate(
+        {"summary": "Latency jump", "findings": [{"claim": "m", "series_ids": ["met-002"]}]}
+    )
+    deploy = DeployAnswer.model_validate(
+        {"summary": "Pool shrunk", "findings": [{"claim": "d", "deploy_ids": ["dep-002"]}]}
+    )
+    dependency = DependencyAnswer.model_validate(
+        {"summary": "Waiting on pool", "findings": [{"claim": "t", "span_ids": ["trc-002"]}]}
     )
     graph = build_graph(
         TriageAgent(SCENARIO, FakeLLM(_decision(CANDIDATES))),
-        LogsAgent(SCENARIO, FakeLLM(answer)),
+        {
+            "logs": LogsAgent(SCENARIO, FakeLLM(logs)),
+            "metrics": MetricsAgent(SCENARIO, FakeLLM(metrics)),
+            "deploy": DeployAgent(SCENARIO, FakeLLM(deploy)),
+            "dependency": DependencyAgent(SCENARIO, FakeLLM(dependency)),
+        },
         checkpointer=InMemorySaver(serde=SERDE),
     )
     config = {"configurable": {"thread_id": str(incident.run_id)}}
     result = graph.invoke({"incident": incident}, config)
     assert isinstance(result["scope"], InvestigationScope)
-    assert [f.evidence_ids for f in result["findings"]] == [["log-008"]]
-    assert result["evidence"]["log-008"].run_id == incident.run_id
+    assert sorted(f.evidence_ids[0] for f in result["findings"]) == [
+        "dep-002",
+        "log-008",
+        "met-002",
+        "trc-002",
+    ]
+    assert set(result["evidence"]) == {"dep-002", "log-008", "met-002", "trc-002"}
+    assert result["evidence"]["met-002"].run_id == incident.run_id
     assert graph.get_state(config).values == result
 
 

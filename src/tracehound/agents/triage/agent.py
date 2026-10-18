@@ -26,20 +26,16 @@ class TriageContext(BaseModel):
     deploys: list[Deploy]
 
 
-class TaskQuestion(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    specialist: Specialist
-    question: str
-
-
 class TriageDecision(BaseModel):
     """What the model decides. Windows and services are checked against the context after."""
 
     model_config = ConfigDict(extra="forbid")
 
     services: list[str] = Field(description="In-scope services, chosen from the candidates")
-    tasks: list[TaskQuestion] = Field(description="Exactly one question per specialist")
+    logs_question: str
+    metrics_question: str
+    deploy_question: str
+    dependency_question: str
     rationale: str
 
 
@@ -90,6 +86,11 @@ class TriageAgent:
             symptom_window_start=ctx.incident.window_start,
             symptom_window_end=ctx.incident.window_end,
             change_window_start=ctx.change_window_start,
-            tasks=[SpecialistTask(**t.model_dump(), services=services) for t in decision.tasks],
+            tasks=[
+                SpecialistTask(
+                    specialist=s, question=getattr(decision, f"{s}_question"), services=services
+                )
+                for s in Specialist
+            ],
             rationale=decision.rationale,
         )

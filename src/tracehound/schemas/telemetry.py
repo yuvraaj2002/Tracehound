@@ -48,6 +48,52 @@ class LogLine(BaseModel):
         return value.astimezone(UTC)
 
 
+class Span(BaseModel):
+    """One span of a distributed trace. ``parent_span_id`` is None for the root span."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str
+    trace_id: str
+    span_id: str
+    parent_span_id: str | None
+    service: str
+    name: str
+    start: AwareDatetime
+    duration_ms: float = Field(ge=0)
+    status: Literal["ok", "error"]
+    error: str | None = None
+
+    @field_validator("start")
+    @classmethod
+    def _to_utc(cls, value: datetime) -> datetime:
+        return value.astimezone(UTC)
+
+
+class MetricPoint(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    timestamp: AwareDatetime
+    value: float
+
+    @field_validator("timestamp")
+    @classmethod
+    def _to_utc(cls, value: datetime) -> datetime:
+        return value.astimezone(UTC)
+
+
+class MetricSeries(BaseModel):
+    """One time series, such as checkout-api p95 latency, sampled every minute."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str
+    service: str
+    name: str
+    unit: str
+    points: list[MetricPoint]
+
+
 class ServiceNode(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 

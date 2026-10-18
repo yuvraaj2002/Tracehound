@@ -1,4 +1,4 @@
-"""Run the investigation graph (triage, then logs) on a scenario and print each stage.
+"""Run the investigation graph on a scenario and print each stage.
 
 Usage: uv run python scripts/run_investigation.py [scenario_name]
 
@@ -8,6 +8,7 @@ Each run is saved to runs/<time>_<scenario>/: output.txt (everything printed) an
 
 import json
 import sys
+import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TextIO
@@ -15,8 +16,11 @@ from uuid import uuid4
 
 from langgraph.checkpoint.memory import InMemorySaver
 
+from tracehound.agents.dependency import DependencyAgent
+from tracehound.agents.deploy import DeployAgent
 from tracehound.agents.inference import OllamaLLM
 from tracehound.agents.logs import LogsAgent
+from tracehound.agents.metrics import MetricsAgent
 from tracehound.agents.triage import TriageAgent
 from tracehound.orchestrator.graph import build_graph
 from tracehound.orchestrator.state import SERDE
@@ -41,13 +45,19 @@ class Tee:
 
 
 class PrintingLLM(OllamaLLM):
-    """Shows exactly what goes to the model and what comes back."""
+    """Shows exactly what goes to the model and what comes back.
+
+    Specialists run in parallel, so each call prints its context and output together.
+    """
+
+    _lock = threading.Lock()
 
     def generate(self, *, system, user, schema):
-        print(f"\n===== CONTEXT SENT TO {self.model} ({schema.__name__}) =====\n{user}")
         result = super().generate(system=system, user=user, schema=schema)
-        print(f"\n===== LLM OUTPUT ({schema.__name__}) =====")
-        print(result.model_dump_json(indent=2))
+        with self._lock:
+            print(f"\n===== CONTEXT SENT TO {self.model} ({schema.__name__}) =====\n{user}")
+            print(f"\n===== LLM OUTPUT ({schema.__name__}) =====")
+            print(result.model_dump_json(indent=2))
         return result
 
 
@@ -78,7 +88,12 @@ def run(scenario: Path, alert: dict, now: datetime, run_dir: Path) -> None:
     llm = PrintingLLM()
     graph = build_graph(
         TriageAgent(scenario, llm),
-        LogsAgent(scenario, llm),
+        {
+            "logs": LogsAgent(scenario, llm),
+            "metrics": MetricsAgent(scenario, llm),
+            "deploy": DeployAgent(scenario, llm),
+            "dependency": DependencyAgent(scenario, llm),
+        },
         checkpointer=InMemorySaver(serde=SERDE),
     )
     config = {"configurable": {"thread_id": str(incident.run_id)}}

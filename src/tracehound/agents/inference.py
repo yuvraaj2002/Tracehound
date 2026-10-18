@@ -22,8 +22,9 @@ class StructuredLLM(Protocol):
 
 
 class OllamaLLM:
-    def __init__(self, model: str = "LiquidAI/lfm2.5-1.2b-instruct") -> None:
+    def __init__(self, model: str = "LiquidAI/lfm2.5-1.2b-instruct", num_ctx: int = 16384) -> None:
         self.model = model
+        self.num_ctx = num_ctx  # Ollama's default (4096) is too small for a window of log lines.
 
     def generate(self, *, system: str, user: str, schema: type[T]) -> T:
         try:
@@ -42,5 +43,6 @@ class OllamaLLM:
             model=self.model,
             messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
             format=schema.model_json_schema(),
+            options={"num_ctx": self.num_ctx},
         )
         return schema.model_validate_json(response.message.content)
