@@ -28,23 +28,23 @@
   ],
   "edges": [
     {
-      "from": "checkout-api",
-      "to": "payments-api",
+      "source": "checkout-api",
+      "target": "payments-api",
       "protocol": "http"
     },
     {
-      "from": "checkout-api",
-      "to": "inventory-api",
+      "source": "checkout-api",
+      "target": "inventory-api",
       "protocol": "http"
     },
     {
-      "from": "checkout-api",
-      "to": "orders-db",
+      "source": "checkout-api",
+      "target": "orders-db",
       "protocol": "postgres"
     },
     {
-      "from": "payments-api",
-      "to": "payments-db",
+      "source": "payments-api",
+      "target": "payments-db",
       "protocol": "postgres"
     }
   ]

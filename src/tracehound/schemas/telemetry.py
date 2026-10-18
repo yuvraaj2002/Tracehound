@@ -5,13 +5,6 @@ from datetime import UTC, datetime
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
 
 
-class ConfigChange(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    old: str | None
-    new: str | None
-
-
 class Deploy(BaseModel):
     """A deployment of one service version."""
 
@@ -25,7 +18,9 @@ class Deploy(BaseModel):
     author: str
     commit: str
     change_summary: str
-    config_diff: dict[str, ConfigChange] = Field(default_factory=dict)
+    config_diff: dict[str, dict[str, str | None]] = Field(
+        default_factory=dict, description='Config key -> {"old": ..., "new": ...}'
+    )
 
     @field_validator("deployed_at")
     @classmethod
@@ -44,10 +39,10 @@ class ServiceNode(BaseModel):
 class Edge(BaseModel):
     """``source`` calls ``target``."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
-    source: str = Field(alias="from")
-    target: str = Field(alias="to")
+    source: str
+    target: str
     protocol: str
 
 

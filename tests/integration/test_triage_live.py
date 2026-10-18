@@ -10,8 +10,7 @@ import pytest
 
 from tracehound.agents.llm import AnthropicLLM
 from tracehound.agents.triage import TriageAgent
-from tracehound.schemas import IncidentRecord, TriagePlanner
-from tracehound.tools.scenario import ScenarioTelemetry
+from tracehound.schemas import IncidentRecord
 
 SCENARIO = Path(__file__).resolve().parents[2] / "scenarios" / "checkout_db_pool_exhaustion"
 
@@ -27,6 +26,5 @@ def test_live_triage_scopes_checkout_incident() -> None:
     incident = IncidentRecord(
         id=uuid4(), run_id=uuid4(), state="created", created_at=now, updated_at=now, **alert
     )
-    scope = TriageAgent(ScenarioTelemetry(SCENARIO), AnthropicLLM())(incident)
-    assert scope.planner is TriagePlanner.LLM, scope.fallback_reason
+    scope = TriageAgent(SCENARIO, AnthropicLLM())(incident)
     assert {"checkout-api", "orders-db"} <= set(scope.services)

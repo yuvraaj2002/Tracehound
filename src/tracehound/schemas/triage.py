@@ -14,13 +14,6 @@ class Specialist(StrEnum):
     DEPENDENCY = "dependency"
 
 
-class TriagePlanner(StrEnum):
-    """Who produced the scope: the LLM, or the rule-based fallback."""
-
-    LLM = "llm"
-    RULES = "rules"
-
-
 class SpecialistTask(BaseModel):
     """One question for one specialist."""
 
@@ -43,8 +36,6 @@ class InvestigationScope(BaseModel):
     change_window_start: AwareDatetime
     tasks: list[SpecialistTask]
     rationale: str = Field(min_length=1, max_length=2000)
-    planner: TriagePlanner
-    fallback_reason: str | None = None
 
     @field_validator("symptom_window_start", "symptom_window_end", "change_window_start")
     @classmethod

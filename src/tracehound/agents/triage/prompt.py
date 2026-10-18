@@ -87,7 +87,7 @@ def render_user_message(ctx: TriageContext) -> str:
 
 def _deploy_line(deploy: Deploy) -> str:
     changes = "; ".join(
-        f"{_clean(key)} {_clean(str(change.old))} -> {_clean(str(change.new))}"
+        f"{_clean(key)} {_clean(str(change['old']))} -> {_clean(str(change['new']))}"
         for key, change in deploy.config_diff.items()
     )
     return (

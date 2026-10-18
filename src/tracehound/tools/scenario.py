@@ -1,8 +1,7 @@
-"""Read-only telemetry backed by a pinned scenario directory."""
+"""Read-only telemetry from a pinned scenario directory. Never reads ``ground_truth/``."""
 
 import json
 from datetime import datetime
-from functools import cached_property
 from pathlib import Path
 
 from pydantic import TypeAdapter
@@ -12,30 +11,18 @@ from tracehound.schemas.telemetry import Deploy, Topology
 _DEPLOYS = TypeAdapter(list[Deploy])
 
 
-class ScenarioTelemetry:
-    """Serves ``scenarios/<id>/*.json``. Never reads ``ground_truth/``."""
-
-    def __init__(self, scenario_dir: Path) -> None:
-        self._dir = scenario_dir
-
-    def topology(self) -> Topology:
-        return self._topology
-
-    def deploys(self, services: set[str], start: datetime, end: datetime) -> list[Deploy]:
-        """Deploys to ``services`` with ``start <= deployed_at <= end``, oldest first."""
-        return [d for d in self._deploys if d.service in services and start <= d.deployed_at <= end]
-
-    @cached_property
-    def _topology(self) -> Topology:
-        return Topology.model_validate(self._load("topology.json"))
-
-    @cached_property
-    def _deploys(self) -> list[Deploy]:
-        return sorted(_DEPLOYS.validate_python(self._load("deploys.json")), key=_deployed_at)
-
-    def _load(self, name: str) -> object:
-        return json.loads((self._dir / name).read_text())
+def load_topology(scenario_dir: Path) -> Topology:
+    return Topology.model_validate(_load(scenario_dir / "topology.json"))
 
 
-def _deployed_at(deploy: Deploy) -> datetime:
-    return deploy.deployed_at
+def load_deploys(
+    scenario_dir: Path, services: set[str], start: datetime, end: datetime
+) -> list[Deploy]:
+    """Deploys to ``services`` with ``start <= deployed_at <= end``, oldest first."""
+    deploys = _DEPLOYS.validate_python(_load(scenario_dir / "deploys.json"))
+    matching = [d for d in deploys if d.service in services and start <= d.deployed_at <= end]
+    return sorted(matching, key=lambda d: d.deployed_at)
+
+
+def _load(path: Path) -> object:
+    return json.loads(path.read_text())

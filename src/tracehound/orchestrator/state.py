@@ -2,6 +2,8 @@
 
 from typing import Annotated, Required, TypedDict
 
+from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+
 from tracehound.schemas.evidence import Evidence, EvidenceId
 from tracehound.schemas.hypothesis import Hypothesis
 from tracehound.schemas.incident import IncidentRecord
@@ -20,3 +22,21 @@ class InvestigationState(TypedDict, total=False):
     scope: InvestigationScope
     evidence: Annotated[dict[EvidenceId, Evidence], keep_first]
     hypotheses: list[Hypothesis]
+
+
+SERDE = JsonPlusSerializer(
+    allowed_msgpack_modules=[
+        ("tracehound.schemas.incident", "IncidentRecord"),
+        ("tracehound.schemas.incident", "Severity"),
+        ("tracehound.schemas.triage", "InvestigationScope"),
+        ("tracehound.schemas.triage", "SpecialistTask"),
+        ("tracehound.schemas.triage", "Specialist"),
+        ("tracehound.schemas.evidence", "Evidence"),
+        ("tracehound.schemas.evidence", "EvidenceSource"),
+        ("tracehound.schemas.hypothesis", "Hypothesis"),
+        ("tracehound.schemas.hypothesis", "HypothesisStatus"),
+        ("tracehound.schemas.hypothesis", "ConfidenceBand"),
+        ("tracehound.schemas.hypothesis", "VerificationStep"),
+    ]
+)
+"""Checkpoint serializer that only revives our own state types. Pass as ``serde=`` to a saver."""
