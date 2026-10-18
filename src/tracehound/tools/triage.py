@@ -1,4 +1,4 @@
-"""Read-only telemetry from a pinned scenario directory. Never reads ``ground_truth/``."""
+"""Triage tools: topology and deploys from a pinned scenario. Never reads ``ground_truth/``."""
 
 import json
 from datetime import datetime

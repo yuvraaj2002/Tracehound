@@ -10,7 +10,7 @@ from tracehound.agents.triage.prompt import SYSTEM_PROMPT
 from tracehound.schemas.incident import IncidentRecord
 from tracehound.schemas.telemetry import Deploy, Edge, ServiceNode
 from tracehound.schemas.triage import InvestigationScope, Specialist, SpecialistTask
-from tracehound.tools.scenario import load_deploys, load_topology
+from tracehound.tools.triage import load_deploys, load_topology
 
 CHANGE_LOOKBACK = timedelta(hours=1)
 """How far before the symptom window to look for deploys. Changes often precede symptoms."""

@@ -18,7 +18,7 @@ from tracehound.schemas import (
     InvestigationScope,
     Specialist,
 )
-from tracehound.tools.scenario import load_deploys, load_topology
+from tracehound.tools.triage import load_deploys, load_topology
 
 SCENARIO = Path(__file__).resolve().parents[2] / "scenarios" / "checkout_db_pool_exhaustion"
 CANDIDATES = ["checkout-api", "inventory-api", "orders-db", "payments-api"]
