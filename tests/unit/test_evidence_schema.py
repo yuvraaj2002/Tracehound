@@ -17,7 +17,7 @@ RECORD = {
 def _evidence(**override: Any) -> dict[str, Any]:
     return {
         "id": "log-006",
-        "incident_id": str(uuid4()),
+        "run_id": str(uuid4()),
         "source_type": "log",
         "source_locator": "scenario://checkout_db_pool_exhaustion/logs.json#log-006",
         "service": "checkout-api",

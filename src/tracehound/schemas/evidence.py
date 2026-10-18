@@ -33,7 +33,7 @@ class Evidence(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     id: EvidenceId
-    incident_id: UUID
+    run_id: UUID
     source_type: EvidenceSource
     source_locator: str = Field(min_length=1, max_length=512)
     service: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._-]+$")
