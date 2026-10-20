@@ -34,7 +34,7 @@ class InvestigationScope(BaseModel):
     symptom_window_start: AwareDatetime
     symptom_window_end: AwareDatetime
     change_window_start: AwareDatetime
-    tasks: list[SpecialistTask]
+    tasks: list[SpecialistTask] = Field(min_length=1)
     rationale: str = Field(min_length=1, max_length=2000)
 
     @field_validator("symptom_window_start", "symptom_window_end", "change_window_start")
@@ -51,8 +51,8 @@ class InvestigationScope(BaseModel):
         if not self.change_window_start <= self.symptom_window_start < self.symptom_window_end:
             raise ValueError("windows must satisfy change_start <= symptom_start < symptom_end")
         dispatched = [task.specialist for task in self.tasks]
-        if sorted(dispatched) != sorted(Specialist):
-            raise ValueError("there must be exactly one task per specialist")
+        if len(dispatched) != len(set(dispatched)):
+            raise ValueError("there must be at most one task per specialist")
         for task in self.tasks:
             unknown = set(task.services) - set(self.services)
             if unknown:

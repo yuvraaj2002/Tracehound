@@ -115,11 +115,16 @@ def test_alert_service_is_always_in_scope(incident: IncidentRecord) -> None:
     assert all(task.services == scope.services for task in scope.tasks)
 
 
-def test_decision_requires_every_specialist_question() -> None:
-    data = _decision(["checkout-api"]).model_dump()
-    del data["dependency_question"]
-    with pytest.raises(ValidationError, match="dependency_question"):
-        TriageDecision.model_validate(data)
+def test_null_question_skips_specialist(incident: IncidentRecord) -> None:
+    decision = _decision(CANDIDATES, metrics_question=None, dependency_question=" ")
+    scope = TriageAgent(SCENARIO, FakeLLM(decision))(incident)
+    assert [task.specialist for task in scope.tasks] == [Specialist.LOGS, Specialist.DEPLOY]
+
+
+def test_no_specialist_selected_raises(incident: IncidentRecord) -> None:
+    decision = _decision(CANDIDATES, **{f"{s}_question": None for s in Specialist})
+    with pytest.raises(ValueError, match="no specialists"):
+        TriageAgent(SCENARIO, FakeLLM(decision))(incident)
 
 
 @pytest.mark.parametrize(
@@ -141,6 +146,7 @@ def test_bad_llm_result_raises(incident: IncidentRecord, result: BaseModel | Exc
         {"services": ["orders-db"]},  # alert service missing
         {"change_window_start": "2026-10-15T14:00:00Z"},  # lookback after symptom start
         {"tasks": []},
+        {"tasks": [{"specialist": "logs", "question": "q", "services": ["checkout-api"]}] * 2},
     ],
 )
 def test_scope_rejects_inconsistent_values(
@@ -155,7 +161,7 @@ def test_evidence_reducer_keeps_first_copy() -> None:
     assert keep_first({"a": 1}, {"a": 2, "b": 3}) == {"a": 1, "b": 3}  # type: ignore[dict-item]
 
 
-def test_graph_runs_triage_then_specialists_and_checkpoints(incident: IncidentRecord) -> None:
+def _graph(incident: IncidentRecord, decision: TriageDecision) -> Any:
     logs = LogsAnswer.model_validate(
         {"summary": "Pool timeouts", "findings": [{"claim": "c", "log_ids": ["log-008"]}]}
     )
@@ -184,8 +190,8 @@ def test_graph_runs_triage_then_specialists_and_checkpoints(incident: IncidentRe
             ]
         }
     )
-    graph = build_graph(
-        TriageAgent(SCENARIO, FakeLLM(_decision(CANDIDATES))),
+    return build_graph(
+        TriageAgent(SCENARIO, FakeLLM(decision)),
         {
             "logs": LogsAgent(SCENARIO, FakeLLM(logs)),
             "metrics": MetricsAgent(SCENARIO, FakeLLM(metrics)),
@@ -195,6 +201,10 @@ def test_graph_runs_triage_then_specialists_and_checkpoints(incident: IncidentRe
         HypothesisAgent(FakeLLM(hypotheses)),
         checkpointer=InMemorySaver(serde=SERDE),
     )
+
+
+def test_graph_runs_triage_then_specialists_and_checkpoints(incident: IncidentRecord) -> None:
+    graph = _graph(incident, _decision(CANDIDATES))
     config = {"configurable": {"thread_id": str(incident.run_id)}}
     result = graph.invoke({"incident": incident}, config)
     assert isinstance(result["scope"], InvestigationScope)
@@ -208,6 +218,15 @@ def test_graph_runs_triage_then_specialists_and_checkpoints(incident: IncidentRe
     assert result["evidence"]["met-002"].run_id == incident.run_id
     assert [h.supporting_evidence_ids for h in result["hypotheses"]] == [["dep-002", "log-008"]]
     assert graph.get_state(config).values == result
+
+
+def test_graph_runs_only_selected_specialists(incident: IncidentRecord) -> None:
+    decision = _decision(CANDIDATES, metrics_question=None, dependency_question=None)
+    config = {"configurable": {"thread_id": str(incident.run_id)}}
+    result = _graph(incident, decision).invoke({"incident": incident}, config)
+    assert sorted(f.specialist for f in result["findings"]) == ["deploy", "logs"]
+    assert set(result["evidence"]) == {"dep-002", "log-008"}
+    assert len(result["hypotheses"]) == 1
 
 
 def test_generate_retries_then_raises_llm_error(monkeypatch: pytest.MonkeyPatch) -> None:

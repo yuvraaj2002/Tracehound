@@ -28,7 +28,7 @@ def build_graph(
     hypothesize: Hypothesize,
     checkpointer: Checkpointer = None,
 ) -> CompiledStateGraph:
-    """Triage, then every specialist in parallel, then one hypothesis step over all of them."""
+    """Triage, then the specialists it selected in parallel, then one hypothesis step over them."""
 
     def triage_node(state: InvestigationState) -> dict[str, InvestigationScope]:
         return {"scope": triage(state["incident"])}
@@ -43,14 +43,24 @@ def build_graph(
     builder = StateGraph(InvestigationState)
     builder.add_node("triage", triage_node)
     builder.add_edge(START, "triage")
+    builder.add_conditional_edges("triage", partial(_selected, specialists), list(specialists))
     for name, specialist in specialists.items():
         builder.add_node(name, partial(_run_specialist, specialist))
-        builder.add_edge("triage", name)
-    # One edge from the whole list: hypothesis waits until every specialist has finished.
+        # A plain edge, not a list join: a join would wait forever on skipped specialists.
+        # The selected ones run in the same step, so hypothesis runs once, after all of them.
+        builder.add_edge(name, "hypothesis")
     builder.add_node("hypothesis", hypothesis_node)
-    builder.add_edge(list(specialists), "hypothesis")
     builder.add_edge("hypothesis", END)
     return builder.compile(checkpointer=checkpointer)
+
+
+def _selected(specialists: Mapping[str, Specialist], state: InvestigationState) -> list[str]:
+    """The specialist nodes triage gave a task to."""
+    chosen = [str(task.specialist) for task in state["scope"].tasks]
+    missing = set(chosen) - set(specialists)
+    if missing:
+        raise RuntimeError(f"triage selected specialists with no node: {sorted(missing)}")
+    return chosen
 
 
 def _run_specialist(specialist: Specialist, state: InvestigationState) -> dict[str, object]:

@@ -32,10 +32,12 @@ class TriageDecision(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     services: list[str] = Field(description="In-scope services, chosen from the candidates")
-    logs_question: str
-    metrics_question: str
-    deploy_question: str
-    dependency_question: str
+    logs_question: str | None = Field(default=None, description="Null to skip this specialist")
+    metrics_question: str | None = Field(default=None, description="Null to skip this specialist")
+    deploy_question: str | None = Field(default=None, description="Null to skip this specialist")
+    dependency_question: str | None = Field(
+        default=None, description="Null to skip this specialist"
+    )
     rationale: str
 
 
@@ -78,6 +80,10 @@ class TriageAgent:
         unknown = set(decision.services) - set(candidate_ids)
         if unknown:
             raise ValueError(f"model chose services outside the candidates: {sorted(unknown)}")
+        questions = {s: getattr(decision, f"{s}_question") for s in Specialist}
+        questions = {s: q for s, q in questions.items() if q and q.strip()}
+        if not questions:
+            raise ValueError("model selected no specialists")
         alert = ctx.incident.service_id
         services = [s for s in candidate_ids if s == alert or s in decision.services]
         return InvestigationScope(
@@ -87,10 +93,8 @@ class TriageAgent:
             symptom_window_end=ctx.incident.window_end,
             change_window_start=ctx.change_window_start,
             tasks=[
-                SpecialistTask(
-                    specialist=s, question=getattr(decision, f"{s}_question"), services=services
-                )
-                for s in Specialist
+                SpecialistTask(specialist=s, question=q, services=services)
+                for s, q in questions.items()
             ],
             rationale=decision.rationale,
         )
