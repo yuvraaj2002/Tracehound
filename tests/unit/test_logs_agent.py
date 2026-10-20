@@ -80,3 +80,19 @@ def test_citations_become_evidence(scope: InvestigationScope) -> None:
 def test_citing_unseen_line_raises(scope: InvestigationScope, log_id: str) -> None:
     with pytest.raises(ValueError, match="not shown"):
         LogsAgent(SCENARIO, FakeLLM(_answer("log-008", log_id)))(scope, uuid4())
+
+
+def test_context_uses_the_logs_task_services_not_the_whole_scope(
+    scope: InvestigationScope,
+) -> None:
+    wide = ["checkout-api", "orders-db", "payments-api"]
+    tasks = [t.model_copy(update={"services": wide}) for t in scope.tasks]
+    tasks = [
+        t.model_copy(update={"services": ["checkout-api"]}) if t.specialist == "logs" else t
+        for t in tasks
+    ]
+    scope = scope.model_copy(update={"services": wide, "tasks": tasks})
+
+    ctx = LogsAgent(SCENARIO, FakeLLM(_answer("log-008"))).build_context(scope)
+    assert ctx.services == ["checkout-api"]
+    assert {line.service for line in ctx.logs} == {"checkout-api"}

@@ -61,10 +61,11 @@ class DependencyAgent:
         return self.report_from_answer(ctx, answer, run_id)
 
     def build_context(self, scope: InvestigationScope) -> DependencyContext:
-        services = set(scope.services)
+        task = scope.task_for(Specialist.DEPENDENCY)
+        services = set(task.services)
         return DependencyContext(
-            question=scope.task_for(Specialist.DEPENDENCY).question,
-            services=scope.services,
+            question=task.question,
+            services=task.services,
             window_start=scope.change_window_start,
             window_end=scope.symptom_window_end,
             edges=self._topology.edges_touching(services),

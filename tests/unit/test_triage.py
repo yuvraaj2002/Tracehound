@@ -121,6 +121,23 @@ def test_null_question_skips_specialist(incident: IncidentRecord) -> None:
     assert [task.specialist for task in scope.tasks] == [Specialist.LOGS, Specialist.DEPLOY]
 
 
+def test_task_services_narrow_but_keep_alert(incident: IncidentRecord) -> None:
+    decision = _decision(CANDIDATES, logs_services=["orders-db"], deploy_services=[])
+    scope = TriageAgent(SCENARIO, FakeLLM(decision))(incident)
+    assert scope.task_for(Specialist.LOGS).services == ["checkout-api", "orders-db"]
+    assert scope.task_for(Specialist.DEPLOY).services == scope.services  # empty means all
+    assert scope.task_for(Specialist.METRICS).services == scope.services  # null means all
+
+
+def test_task_services_outside_scope_are_dropped(incident: IncidentRecord) -> None:
+    decision = _decision(
+        ["orders-db"], logs_services=["payments-api"], metrics_services=["metrics", "orders-db"]
+    )
+    scope = TriageAgent(SCENARIO, FakeLLM(decision))(incident)
+    assert scope.task_for(Specialist.LOGS).services == scope.services  # nothing valid: all
+    assert scope.task_for(Specialist.METRICS).services == ["checkout-api", "orders-db"]
+
+
 def test_no_specialist_selected_raises(incident: IncidentRecord) -> None:
     decision = _decision(CANDIDATES, **{f"{s}_question": None for s in Specialist})
     with pytest.raises(ValueError, match="no specialists"):

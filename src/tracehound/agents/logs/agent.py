@@ -58,13 +58,14 @@ class LogsAgent:
         return self.report_from_answer(ctx, answer, run_id)
 
     def build_context(self, scope: InvestigationScope) -> LogsContext:
+        task = scope.task_for(Specialist.LOGS)
         return LogsContext(
-            question=scope.task_for(Specialist.LOGS).question,
-            services=scope.services,
+            question=task.question,
+            services=task.services,
             window_start=scope.change_window_start,
             window_end=scope.symptom_window_end,
             logs=self._reader.fetch(
-                set(scope.services), scope.change_window_start, scope.symptom_window_end
+                set(task.services), scope.change_window_start, scope.symptom_window_end
             ),
         )
 

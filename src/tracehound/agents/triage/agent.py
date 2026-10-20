@@ -38,6 +38,18 @@ class TriageDecision(BaseModel):
     dependency_question: str | None = Field(
         default=None, description="Null to skip this specialist"
     )
+    logs_services: list[str] | None = Field(
+        default=None, description="Service names from services; null for all"
+    )
+    metrics_services: list[str] | None = Field(
+        default=None, description="Service names from services; null for all"
+    )
+    deploy_services: list[str] | None = Field(
+        default=None, description="Service names from services; null for all"
+    )
+    dependency_services: list[str] | None = Field(
+        default=None, description="Service names from services; null for all"
+    )
     rationale: str
 
 
@@ -93,8 +105,26 @@ class TriageAgent:
             symptom_window_end=ctx.incident.window_end,
             change_window_start=ctx.change_window_start,
             tasks=[
-                SpecialistTask(specialist=s, question=q, services=services)
+                SpecialistTask(
+                    specialist=s,
+                    question=q,
+                    services=_task_services(s, decision, services, alert),
+                )
                 for s, q in questions.items()
             ],
             rationale=decision.rationale,
         )
+
+
+def _task_services(
+    specialist: Specialist, decision: TriageDecision, in_scope: list[str], alert: str
+) -> list[str]:
+    """The services one specialist looks at, always with the alert service.
+
+    Names outside the scope are dropped rather than raised on: narrowing is optional, and a bad
+    pick should widen the search back to the whole scope, not fail the run.
+    """
+    chosen = set(getattr(decision, f"{specialist}_services") or []) & set(in_scope)
+    if not chosen:
+        return in_scope
+    return [s for s in in_scope if s == alert or s in chosen]

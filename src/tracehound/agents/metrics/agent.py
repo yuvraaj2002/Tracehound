@@ -58,13 +58,14 @@ class MetricsAgent:
         return self.report_from_answer(ctx, answer, run_id)
 
     def build_context(self, scope: InvestigationScope) -> MetricsContext:
+        task = scope.task_for(Specialist.METRICS)
         return MetricsContext(
-            question=scope.task_for(Specialist.METRICS).question,
-            services=scope.services,
+            question=task.question,
+            services=task.services,
             window_start=scope.change_window_start,
             window_end=scope.symptom_window_end,
             series=self._reader.fetch(
-                set(scope.services), scope.change_window_start, scope.symptom_window_end
+                set(task.services), scope.change_window_start, scope.symptom_window_end
             ),
         )
 
