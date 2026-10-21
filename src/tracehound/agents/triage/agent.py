@@ -26,20 +26,30 @@ class TriageContext(BaseModel):
     deploys: list[Deploy]
 
 
-class TaskQuestion(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    specialist: Specialist
-    question: str
-
-
 class TriageDecision(BaseModel):
     """What the model decides. Windows and services are checked against the context after."""
 
     model_config = ConfigDict(extra="forbid")
 
     services: list[str] = Field(description="In-scope services, chosen from the candidates")
-    tasks: list[TaskQuestion] = Field(description="Exactly one question per specialist")
+    logs_question: str | None = Field(default=None, description="Null to skip this specialist")
+    metrics_question: str | None = Field(default=None, description="Null to skip this specialist")
+    deploy_question: str | None = Field(default=None, description="Null to skip this specialist")
+    dependency_question: str | None = Field(
+        default=None, description="Null to skip this specialist"
+    )
+    logs_services: list[str] | None = Field(
+        default=None, description="Service names from services; null for all"
+    )
+    metrics_services: list[str] | None = Field(
+        default=None, description="Service names from services; null for all"
+    )
+    deploy_services: list[str] | None = Field(
+        default=None, description="Service names from services; null for all"
+    )
+    dependency_services: list[str] | None = Field(
+        default=None, description="Service names from services; null for all"
+    )
     rationale: str
 
 
@@ -82,6 +92,10 @@ class TriageAgent:
         unknown = set(decision.services) - set(candidate_ids)
         if unknown:
             raise ValueError(f"model chose services outside the candidates: {sorted(unknown)}")
+        questions = {s: getattr(decision, f"{s}_question") for s in Specialist}
+        questions = {s: q for s, q in questions.items() if q and q.strip()}
+        if not questions:
+            raise ValueError("model selected no specialists")
         alert = ctx.incident.service_id
         services = [s for s in candidate_ids if s == alert or s in decision.services]
         return InvestigationScope(
@@ -90,6 +104,27 @@ class TriageAgent:
             symptom_window_start=ctx.incident.window_start,
             symptom_window_end=ctx.incident.window_end,
             change_window_start=ctx.change_window_start,
-            tasks=[SpecialistTask(**t.model_dump(), services=services) for t in decision.tasks],
+            tasks=[
+                SpecialistTask(
+                    specialist=s,
+                    question=q,
+                    services=_task_services(s, decision, services, alert),
+                )
+                for s, q in questions.items()
+            ],
             rationale=decision.rationale,
         )
+
+
+def _task_services(
+    specialist: Specialist, decision: TriageDecision, in_scope: list[str], alert: str
+) -> list[str]:
+    """The services one specialist looks at, always with the alert service.
+
+    Names outside the scope are dropped rather than raised on: narrowing is optional, and a bad
+    pick should widen the search back to the whole scope, not fail the run.
+    """
+    chosen = set(getattr(decision, f"{specialist}_services") or []) & set(in_scope)
+    if not chosen:
+        return in_scope
+    return [s for s in in_scope if s == alert or s in chosen]
