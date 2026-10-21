@@ -1,4 +1,4 @@
-"""Log tools: structured log lines from a pinned scenario. Never reads ``ground_truth/``."""
+"""File log source: a pinned scenario's ``logs.json``. Never reads ``ground_truth/``."""
 
 import json
 from datetime import datetime
@@ -11,7 +11,7 @@ from tracehound.schemas.telemetry import LogLine
 _LOGS = TypeAdapter(list[LogLine])
 
 
-class LogReader:
+class FileLogSource:
     """Reads the scenario's ``logs.json`` once and answers queries by service and time."""
 
     def __init__(self, scenario_dir: Path) -> None:

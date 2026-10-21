@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from pathlib import Path
 
-from tracehound.tools.logs import LogReader
+from tracehound.tools.logs import FileLogSource
 
 SCENARIO = Path(__file__).resolve().parents[2] / "scenarios" / "checkout_db_pool_exhaustion"
 
@@ -10,7 +10,7 @@ def test_fetch_filters_by_service_and_window_oldest_first() -> None:
     start = datetime(2026, 10, 15, 13, 45, tzinfo=UTC)
     end = datetime(2026, 10, 15, 14, 30, tzinfo=UTC)
     services = {"checkout-api"}
-    lines = LogReader(SCENARIO).fetch(services, start, end)
+    lines = FileLogSource(SCENARIO).fetch(services, start, end)
 
     print(f"\nQUERY: services={sorted(services)} start={start} end={end}")
     print(f"RESULT: {len(lines)} lines")

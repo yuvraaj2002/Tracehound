@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from tracehound.agents.logs import LogsAgent, LogsAnswer
 from tracehound.agents.logs.agent import CitedClaim
 from tracehound.schemas import InvestigationScope, Specialist, SpecialistTask, hash_payload
-from tracehound.tools.logs import LogReader
+from tracehound.tools.logs import FileLogSource
 
 SCENARIO = Path(__file__).resolve().parents[2] / "scenarios" / "checkout_db_pool_exhaustion"
 SERVICES = ["checkout-api", "orders-db"]
@@ -50,7 +50,7 @@ def _answer(*log_ids: str) -> LogsAnswer:
 
 def test_context_has_logs_question_and_only_scoped_services(scope: InvestigationScope) -> None:
     llm = FakeLLM(_answer("log-008"))
-    LogsAgent(SCENARIO, llm)(scope, uuid4())
+    LogsAgent(FileLogSource(SCENARIO), llm)(scope, uuid4())
 
     user = llm.calls[0]["user"]
     assert user.startswith("<context>\n") and user.endswith("\n</context>")
@@ -60,11 +60,13 @@ def test_context_has_logs_question_and_only_scoped_services(scope: Investigation
 
 def test_citations_become_evidence(scope: InvestigationScope) -> None:
     run_id = uuid4()
-    report = LogsAgent(SCENARIO, FakeLLM(_answer("log-006", "log-008", "log-006")))(scope, run_id)
+    report = LogsAgent(FileLogSource(SCENARIO), FakeLLM(_answer("log-006", "log-008", "log-006")))(
+        scope, run_id
+    )
 
     assert report.findings[0].evidence_ids == ["log-006", "log-008", "log-006"]
     assert [e.id for e in report.evidence] == ["log-006", "log-008"]
-    lines = LogReader(SCENARIO).fetch(
+    lines = FileLogSource(SCENARIO).fetch(
         set(SERVICES), scope.change_window_start, scope.symptom_window_end
     )
     raw = next(line for line in lines if line.id == "log-008")
@@ -79,7 +81,7 @@ def test_citations_become_evidence(scope: InvestigationScope) -> None:
 @pytest.mark.parametrize("log_id", ["log-999", "log-001"])  # made up / payments-api, not shown
 def test_citing_unseen_line_raises(scope: InvestigationScope, log_id: str) -> None:
     with pytest.raises(ValueError, match="not shown"):
-        LogsAgent(SCENARIO, FakeLLM(_answer("log-008", log_id)))(scope, uuid4())
+        LogsAgent(FileLogSource(SCENARIO), FakeLLM(_answer("log-008", log_id)))(scope, uuid4())
 
 
 def test_context_uses_the_logs_task_services_not_the_whole_scope(
@@ -93,6 +95,6 @@ def test_context_uses_the_logs_task_services_not_the_whole_scope(
     ]
     scope = scope.model_copy(update={"services": wide, "tasks": tasks})
 
-    ctx = LogsAgent(SCENARIO, FakeLLM(_answer("log-008"))).build_context(scope)
+    ctx = LogsAgent(FileLogSource(SCENARIO), FakeLLM(_answer("log-008"))).build_context(scope)
     assert ctx.services == ["checkout-api"]
     assert {line.service for line in ctx.logs} == {"checkout-api"}

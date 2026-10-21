@@ -11,6 +11,7 @@ from tracehound.agents.inference import OllamaLLM
 from tracehound.agents.logs import LogsAgent
 from tracehound.agents.triage import TriageAgent
 from tracehound.schemas import IncidentRecord, Specialist
+from tracehound.tools.logs import FileLogSource
 
 SCENARIO = Path(__file__).resolve().parents[2] / "scenarios" / "checkout_db_pool_exhaustion"
 
@@ -29,7 +30,7 @@ def test_live_logs_cites_pool_timeouts() -> None:
     scope = TriageAgent(SCENARIO, llm)(incident)
     if Specialist.LOGS not in {task.specialist for task in scope.tasks}:
         pytest.skip("live triage did not select the logs specialist")
-    report = LogsAgent(SCENARIO, llm)(scope, incident.run_id)
+    report = LogsAgent(FileLogSource(SCENARIO), llm)(scope, incident.run_id)
 
     assert report.findings
     assert any("QueuePool" in item.excerpt for item in report.evidence)
