@@ -123,45 +123,6 @@ h1 > span { color: var(--color-muted); }
 .section-heading { grid-template-columns: 1.4fr 1fr; gap: 64px; }
 .section-heading h2 { max-width: 650px; text-wrap: balance; }
 .section-heading > p:last-child { max-width: 350px; font-size: 15px; }
-.investigation-flow { display: grid; grid-template-columns: 1fr 1.15fr; gap: clamp(40px, 6vw, 96px); margin-top: 56px; align-items: start; }
-.flow-controls { border-top: 1px solid var(--color-line); }
-.flow-step { width: 100%; display: grid; grid-template-columns: 28px 1fr 16px; gap: 16px; text-align: left; padding: 25px 0; border: 0; border-bottom: 1px solid var(--color-line); background: white; color: var(--color-muted); cursor: pointer; }
-.flow-number { font-size: 11px; font-variant-numeric: tabular-nums; padding-top: 6px; }
-.flow-title { display: block; font-size: 21px; letter-spacing: -.025em; line-height: 1.3; font-weight: 500; }
-.flow-description { display: block; font-size: 14px; line-height: 1.7; margin-top: 10px; max-width: 380px; }
-.flow-arrow { font-size: 18px; padding-top: 3px; opacity: 0; transition: opacity .2s; }
-.flow-step:hover .flow-title, .flow-step.is-active .flow-title { color: var(--color-primary); }
-.flow-step.is-active .flow-number { color: var(--color-tertiary); }
-.flow-step.is-active .flow-arrow, .flow-step:hover .flow-arrow { opacity: 1; color: var(--color-primary); }
-.investigation-preview { border: 1px solid var(--color-line); border-radius: 4px; background: white; box-shadow: 0 12px 40px rgb(37 39 44 / 4%); }
-.preview-top { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 20px 28px; border-bottom: 1px solid var(--color-line); font-size: 10px; letter-spacing: 1px; color: var(--color-muted); }
-.preview-top > span:last-child { letter-spacing: 0; font-size: 11px; }
-.preview-intro { padding: 30px 32px 0; }
-.preview-stage { font-size: 11px; color: var(--color-tertiary); }
-.preview-intro h3 { font-size: 28px; font-weight: 500; line-height: 1.2; letter-spacing: -.035em; margin: 16px 0 12px; max-width: 370px; text-wrap: balance; }
-.preview-intro p { font-size: 14px; line-height: 1.65; color: var(--color-muted); margin: 0; }
-.preview-body { min-height: 280px; padding: 26px 32px; }
-.intake-fields { margin: 0; }
-.intake-fields > div { display: grid; grid-template-columns: 1fr 1.4fr; gap: 16px; padding: 14px 0; border-top: 1px solid var(--color-line); font-size: 12px; line-height: 1.5; }
-.intake-fields dt { color: var(--color-muted); }
-.intake-fields dd { margin: 0; font-weight: 500; }
-.evidence-list { list-style: none; padding: 0; margin: 0; }
-.evidence-list li { display: flex; gap: 22px; border-top: 1px solid var(--color-line); padding: 19px 0; }
-.evidence-time { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--color-primary); }
-.evidence-list strong { display: block; font-size: 13px; font-weight: 500; }
-.evidence-list div > span { display: block; font-size: 11px; color: var(--color-muted); margin-top: 7px; }
-.hypothesis-comparison > div, .review-findings > div { border-top: 1px solid var(--color-line); padding: 17px 0; }
-.finding-label { color: var(--color-primary); font-size: 11px; font-weight: 600; }
-.finding-label.alternative { color: var(--color-secondary); }
-.hypothesis-comparison h4 { font-size: 14px; font-weight: 500; margin: 10px 0 7px; }
-.hypothesis-comparison p, .review-findings p { font-size: 13px; line-height: 1.65; color: var(--color-muted); margin: 8px 0 0; }
-.evidence-ref { white-space: nowrap; font-size: 11px; color: var(--color-primary); }
-.review-findings .human-decision { font-size: 13px; line-height: 1.7; padding-bottom: 0; color: var(--color-muted); }
-.human-decision strong { font-weight: 500; color: var(--color-ink); }
-.preview-agents { border-top: 1px solid var(--color-line); padding: 18px 32px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 10px; color: var(--color-muted); }
-.preview-agents > div { display: flex; gap: 12px; flex-wrap: wrap; }
-.agent-chip { display: inline-flex; align-items: center; gap: 5px; }
-.agent-chip > span { width: 5px; height: 5px; border-radius: 50%; }
 .principles { margin-top: 72px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; }
 .principles > div { border-top: 1px solid var(--color-line); padding-top: 22px; }
 .principles > div > span { font-size: 11px; color: var(--color-tertiary); }
@@ -184,25 +145,13 @@ h1 > span { color: var(--color-muted); }
 .thread-progress { stroke-opacity: .45; stroke-dasharray: 1; stroke-dashoffset: 1; }
 .thread-marker { fill: var(--color-primary); stroke: white; stroke-width: 3; }
 @media (max-width: 900px) {
-  .investigation-flow { gap: 30px; grid-template-columns: 1fr 1fr; }
-  .preview-intro, .preview-body { padding-inline: 22px; }
-  .preview-top, .preview-agents { padding-inline: 22px; }
-  .flow-title { font-size: 19px; }
   .team-member:nth-of-type(even) { grid-template-columns: 1fr 1.2fr; }
   .section-heading { gap: 32px; }
 }
 @media (max-width: 700px) {
   .how { padding-block: 56px; }
-  .section-heading, .investigation-flow { grid-template-columns: 1fr; gap: 28px; }
+  .section-heading { grid-template-columns: 1fr; gap: 28px; }
   .section-heading > p:last-child { margin: 0; max-width: 440px; }
-  .investigation-flow { margin-top: 32px; }
-  .flow-controls { display: grid; grid-template-columns: 1fr 1fr; border-left: 1px solid var(--color-line); }
-  .flow-step { padding: 18px 14px; border-right: 1px solid var(--color-line); grid-template-columns: 18px 1fr; gap: 8px; }
-  .flow-title { font-size: 15px; }
-  .flow-number { padding-top: 2px; }
-  .flow-description, .flow-arrow { display: none; }
-  .preview-intro h3 { font-size: 28px; }
-  .preview-body { min-height: 290px; }
   .principles { grid-template-columns: 1fr; gap: 28px; margin-top: 40px; }
   .principles h3 { margin-top: 12px; }
   .principles p { max-width: 440px; }
@@ -215,11 +164,18 @@ h1 > span { color: var(--color-muted); }
 }
 
 .nav-developer { gap: 9px; color: var(--color-primary); }
+.nav nav .nav-cta { gap: 8px; min-height: 40px; padding: 0 18px; border-radius: 999px; background: var(--color-primary); color: white; font-weight: 500; transition: background .2s, transform .2s; }
+.nav nav .nav-cta:hover { color: white; background: var(--color-ink); }
+.nav-cta span[aria-hidden] { transition: transform .2s; }
+.nav-cta:hover span[aria-hidden] { transform: translateX(2px); }
 @media (max-width: 700px) {
   .nav { flex-wrap: wrap; row-gap: 10px; }
   .nav nav { width: 100%; justify-content: space-between; gap: 12px; font-size: 12px; }
   .nav nav a { min-height: 40px; }
   .nav-developer { margin-left: auto; }
+  .nav { position: relative; }
+  .nav nav a { white-space: nowrap; }
+  .nav nav .nav-cta { position: absolute; top: 22px; right: 5%; min-height: 34px; padding: 0 14px; }
 }
 
 /* A small pool of light, not a glowing section background. */
@@ -230,3 +186,78 @@ h1 > span { color: var(--color-muted); }
 .thread-marker { fill: white; stroke: none; }
 .thread-head, .thread-particle { pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .thread-head, .thread-particle, .thread-aura { display: none; } }
+
+/* How it works: a heartbeat trace hands the case from stage to stage. */
+.journey { position: relative; margin-top: 56px; }
+.journey-pulse { position: absolute; top: -12px; left: 18px; width: calc(75% - 0px); height: 60px; overflow: visible; pointer-events: none; }
+.journey-pulse path { fill: none; stroke-linejoin: round; stroke-linecap: round; }
+.pulse-track { stroke: var(--color-line); stroke-width: 1.5; }
+.pulse-line, .pulse-glow { stroke: var(--color-primary); }
+.pulse-line { stroke-width: 2; }
+.pulse-glow { stroke-width: 7; opacity: .14; filter: blur(3px); }
+/* Only the segment leading into the working stage carries a beat. */
+.pulse-beat path { stroke-dasharray: 1 1; animation: pulse-draw var(--travel-ms) cubic-bezier(.45, 0, .55, 1) both; }
+.pulse-beat.is-working .pulse-glow { animation: pulse-draw var(--travel-ms) both, pulse-throb 1.1s ease-in-out infinite; }
+@keyframes pulse-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes pulse-throb { 0%, 40%, 100% { opacity: .1; } 12% { opacity: .45; } 26% { opacity: .25; } }
+.journey-rail { display: none; }
+.journey-stages { position: relative; list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); }
+.journey-stages > li { padding-right: 28px; }
+.journey-stop { display: grid; gap: 6px; justify-items: start; text-align: left; padding: 0; border: 0; background: none; color: var(--color-muted); cursor: pointer; }
+.journey-node { position: relative; display: grid; place-items: center; width: 37px; height: 37px; margin-bottom: 14px; border-radius: 50%; background: white; border: 1px solid var(--color-line); font-size: 11px; font-variant-numeric: tabular-nums; transition: border-color .3s, background .3s, color .3s, transform .3s; }
+.journey-label { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+.journey-title { font-size: 19px; font-weight: 500; letter-spacing: -.025em; line-height: 1.3; color: var(--color-ink); opacity: .4; transition: opacity .3s; }
+.journey-stop:hover .journey-title { opacity: 1; }
+.is-done .journey-node { background: var(--color-primary); border-color: var(--color-primary); color: white; }
+.is-working .journey-node, .is-next .journey-node { border-color: var(--color-primary); color: var(--color-primary); }
+.is-working .journey-label { color: var(--color-tertiary); }
+.is-done .journey-title, .is-working .journey-title { opacity: 1; }
+.is-working .journey-node { animation: heartbeat 1.1s ease-in-out infinite; }
+.is-working .journey-node::after { content: ''; position: absolute; inset: -1px; border-radius: 50%; border: 2px solid var(--color-primary); animation: heartbeat-ring 1.1s ease-out infinite; }
+@keyframes heartbeat { 0%, 40%, 100% { transform: scale(1); } 12% { transform: scale(1.14); } 26% { transform: scale(1.06); } }
+@keyframes heartbeat-ring { from { opacity: .6; transform: scale(1); } to { opacity: 0; transform: scale(1.7); } }
+
+/* Each agent shows up as a small figure while it works on the case. */
+.journey-souls { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; min-height: 76px; }
+.agent-soul { margin: 0; display: grid; justify-items: center; gap: 5px; font-size: 10px; color: var(--color-muted); }
+.soul-frame { display: block; width: 52px; height: 52px; border-radius: 50%; overflow: hidden; background: #f4f4f4; box-shadow: 0 0 0 2px white, 0 0 0 3.5px var(--agent-color); transition: transform .4s, filter .4s; }
+.soul-frame img { display: block; width: 100%; height: 100%; object-fit: cover; transform: scale(1.9); transform-origin: 50% 34%; }
+.agent-soul figcaption { font-weight: 500; color: var(--agent-color); }
+.is-working .agent-soul { animation: soul-in .55s cubic-bezier(.2, .9, .3, 1.3) var(--soul-delay) both; }
+.is-working .soul-frame { animation: soul-glow 1.1s ease-in-out var(--soul-delay) infinite; }
+@keyframes soul-in { from { opacity: 0; transform: translateY(12px) scale(.6); } }
+@keyframes soul-glow { 0%, 100% { box-shadow: 0 0 0 2px white, 0 0 0 3.5px var(--agent-color), 0 0 0 0 transparent; } 15% { box-shadow: 0 0 0 2px white, 0 0 0 3.5px var(--agent-color), 0 0 18px 4px var(--agent-color); } }
+.is-done .soul-frame { transform: scale(.82); filter: saturate(.85); }
+.journey-status { display: flex; align-items: center; gap: 6px; min-height: 18px; margin: 10px 0 0; font-size: 12px; color: var(--color-muted); }
+.is-working .journey-status { color: var(--color-ink); }
+.status-check { display: grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; background: var(--agent-metrics); color: white; font-size: 9px; animation: soul-in .4s cubic-bezier(.2, .9, .3, 1.4) both; }
+.status-dots { display: inline-flex; gap: 3px; }
+.status-dots span { width: 3px; height: 3px; border-radius: 50%; background: currentColor; animation: status-dot 1s ease-in-out infinite; }
+.status-dots span:nth-child(2) { animation-delay: .15s; }
+.status-dots span:nth-child(3) { animation-delay: .3s; }
+@keyframes status-dot { 0%, 60%, 100% { opacity: .25; transform: none; } 30% { opacity: 1; transform: translateY(-2px); } }
+.journey-snapshot { list-style: none; margin: 14px 0 0; padding: 12px 0 0; border-top: 1px solid var(--color-line); display: grid; gap: 7px; font-size: 12px; line-height: 1.45; color: var(--color-ink); }
+.journey-stages > li:not(.is-done) .journey-snapshot { opacity: 0; }
+.journey-stages > li:not(.is-done):not(.is-working) :is(.journey-souls, .journey-status) { opacity: 0; }
+.is-done .journey-snapshot li { animation: journey-in .45s cubic-bezier(.2, .7, .2, 1) var(--soul-delay) both; }
+@keyframes journey-in { from { opacity: 0; transform: translateY(6px); } }
+.journey-footer { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-top: 36px; padding-top: 18px; border-top: 1px solid var(--color-line); font-size: 12px; color: var(--color-muted); }
+.journey-loop { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+.journey-loop::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--agent-metrics); }
+.journey:not(.is-playing) .journey-loop::before { background: var(--color-muted); animation: none; }
+@media (max-width: 900px) { .journey-stages > li { padding-right: 16px; } .journey-title { font-size: 16px; } .soul-frame { width: 40px; height: 40px; } }
+@media (max-width: 700px) {
+  .journey { margin-top: 32px; }
+  .journey-pulse { display: none; }
+  .journey-rail { display: block; position: absolute; top: 18px; bottom: 80px; left: 18px; width: 1.5px; background: var(--color-line); }
+  .journey-rail > span { display: block; width: 100%; height: calc(var(--progress) * 100%); background: var(--color-primary); transition: height var(--travel-ms) cubic-bezier(.45, 0, .55, 1); }
+  .journey-stages { grid-template-columns: 1fr; gap: 26px; }
+  .journey-stages > li { position: relative; padding: 0 0 0 56px; }
+  .journey-node { position: absolute; left: 0; margin: 0; }
+  .journey-stop { min-height: 37px; }
+  .journey-title { font-size: 17px; }
+  .journey-souls { min-height: 0; margin-top: 14px; }
+  .soul-frame { width: 44px; height: 44px; }
+  .journey-stages > li:not(.is-done):not(.is-working) :is(.journey-souls, .journey-status, .journey-snapshot) { display: none; }
+  .journey-stages > li:not(.is-done) .journey-snapshot { display: none; }
+}

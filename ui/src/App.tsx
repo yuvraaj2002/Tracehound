@@ -5,12 +5,12 @@ import AgentThread from './AgentThread'
 import { useSmoothScroll } from './useSmoothScroll'
 
 const agents = [
-  { name: 'Triage', image: '/agents/triage.png', alt: 'Blue investigator coordinating scope and priorities', role: 'One alert. A coordinated team.', description: 'Sizes up the incident and directs the right specialists toward the evidence. Keeps the investigation focused as new findings arrive.', color: 'var(--agent-triage)', signal: 'Incoming alerts & context', output: 'A focused investigation plan' },
-  { name: 'Logs', image: '/agents/logs.png', alt: 'Red investigator examining a terminal and error traces', role: 'Reads between the lines.', description: 'Scans log streams for errors, stack traces, and the first sign of trouble. Turns noisy output into evidence worth following.', color: 'var(--agent-logs)', signal: 'Log streams & stack traces', output: 'The first sign of failure' },
-  { name: 'Metrics', image: '/agents/metrics.png', alt: 'Green investigator inspecting a performance dashboard', role: 'Keeps an eye on the vitals.', description: 'Looks for latency spikes, saturation, and error-rate shifts. Establishes what changed, when it changed, and how far it reached.', color: 'var(--agent-metrics)', signal: 'Latency, traffic & error rates', output: 'A timeline of anomalies' },
-  { name: 'Dependency', image: '/agents/dependency.jpg', alt: 'Teal investigator studying connected systems', role: 'Follows the chain reaction.', description: 'Traces connections between services to understand where a failure started and how it spread. Makes the blast radius visible.', color: 'var(--agent-dependency)', signal: 'Service calls & dependencies', output: 'The path of the failure' },
-  { name: 'Deploy', image: '/agents/deploy.png', alt: 'Yellow investigator inspecting infrastructure and changes', role: 'Remembers what changed.', description: 'Lines up releases and configuration changes with the incident timeline. Helps the team test whether a recent change explains the failure.', color: 'var(--agent-deploy)', signal: 'Releases & configuration changes', output: 'Changes worth investigating' },
-  { name: 'Hypothesis', image: '/agents/hypothesis.jpg', alt: 'Purple investigator piecing together possible explanations', role: 'Connects evidence to answers.', description: 'Weighs competing explanations against the findings. Ranks likely root causes with supporting evidence and uncertainty made explicit.', color: 'var(--agent-hypothesis)', signal: 'Findings from every specialist', output: 'Ranked, evidence-backed hypotheses' },
+  { id: 'triage', name: 'Marshal', specialty: 'Triage', image: '/agents/triage.png', alt: 'Blue investigator coordinating scope and priorities', role: 'One alert. A coordinated team.', description: 'Sizes up the incident and directs the right specialists toward the evidence. Keeps the investigation focused as new findings arrive.', color: 'var(--agent-triage)', signal: 'Incoming alerts & context', output: 'A focused investigation plan' },
+  { id: 'logs', name: 'Echo', specialty: 'Logs', image: '/agents/logs.png', alt: 'Red investigator examining a terminal and error traces', role: 'Reads between the lines.', description: 'Scans log streams for errors, stack traces, and the first sign of trouble. Turns noisy output into evidence worth following.', color: 'var(--agent-logs)', signal: 'Log streams & stack traces', output: 'The first sign of failure' },
+  { id: 'metrics', name: 'Pulse', specialty: 'Metrics', image: '/agents/metrics.png', alt: 'Green investigator inspecting a performance dashboard', role: 'Keeps an eye on the vitals.', description: 'Looks for latency spikes, saturation, and error-rate shifts. Establishes what changed, when it changed, and how far it reached.', color: 'var(--agent-metrics)', signal: 'Latency, traffic & error rates', output: 'A timeline of anomalies' },
+  { id: 'dependency', name: 'Tether', specialty: 'Dependency', image: '/agents/dependency.jpg', alt: 'Teal investigator studying connected systems', role: 'Follows the chain reaction.', description: 'Traces connections between services to understand where a failure started and how it spread. Makes the blast radius visible.', color: 'var(--agent-dependency)', signal: 'Service calls & dependencies', output: 'The path of the failure' },
+  { id: 'deploy', name: 'Ledger', specialty: 'Deploy', image: '/agents/deploy.png', alt: 'Yellow investigator inspecting infrastructure and changes', role: 'Remembers what changed.', description: 'Lines up releases and configuration changes with the incident timeline. Helps the team test whether a recent change explains the failure.', color: 'var(--agent-deploy)', signal: 'Releases & configuration changes', output: 'Changes worth investigating' },
+  { id: 'hypothesis', name: 'Sage', specialty: 'Hypothesis', image: '/agents/hypothesis.jpg', alt: 'Purple investigator piecing together possible explanations', role: 'Connects evidence to answers.', description: 'Weighs competing explanations against the findings. Ranks likely root causes with supporting evidence and uncertainty made explicit.', color: 'var(--agent-hypothesis)', signal: 'Findings from every specialist', output: 'Ranked, evidence-backed hypotheses' },
 ]
 
 const year = new Date().getFullYear()
@@ -36,6 +36,7 @@ function App() {
           <a href="#agents">Agents</a>
           <a href="#how">How it works</a>
           <a className="nav-developer" href="https://www.linkedin.com/in/yuvraaj-singh/" target="_blank" rel="noopener noreferrer">Meet the developer <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></a>
+          <a className="nav-cta" href="https://github.com/yuvraaj2002/Tracehound#development" target="_blank" rel="noopener noreferrer">Get started <span aria-hidden="true">→</span><span className="sr-only"> (opens in a new tab)</span></a>
         </nav>
       </header>
 
@@ -58,22 +59,22 @@ function App() {
         <section id="agents" className="team" aria-labelledby="team-title">
           <div className="team-header"><div><p className="eyebrow">Six agents. One investigation.</p><h2 id="team-title">Every lead has its specialist.</h2></div><p>Meet the team following your incident<br />from the first signal to a clearer answer.</p></div>
           <nav className="team-index" aria-label="Team members">
-            {agents.map((item, index) => <a key={item.name} href={`#${item.name.toLowerCase()}`} aria-current={selected === index ? 'location' : undefined} className={`agent-tab ${selected === index ? 'selected' : ''}`} style={{ '--agent-color': item.color } as CSSProperties}><span className="agent-index">0{index + 1}</span><span className="agent-dot" /><span>{item.name}</span></a>)}
+            {agents.map((item, index) => <a key={item.id} href={`#${item.id}`} aria-current={selected === index ? 'location' : undefined} className={`agent-tab ${selected === index ? 'selected' : ''}`} style={{ '--agent-color': item.color } as CSSProperties}><span className="agent-index">0{index + 1}</span><span className="agent-dot" /><span>{item.name}</span></a>)}
           </nav>
           <div className="team-members">
             <AgentThread />
-            {agents.map((item, index) => <article key={item.name} id={item.name.toLowerCase()} data-index={index} className={`team-member ${selected === index ? 'is-current' : ''}`} aria-labelledby={`${item.name.toLowerCase()}-title`} style={{ '--agent-color': item.color } as CSSProperties}>
+            {agents.map((item, index) => <article key={item.id} id={item.id} data-index={index} className={`team-member ${selected === index ? 'is-current' : ''}`} aria-labelledby={`${item.id}-title`} style={{ '--agent-color': item.color } as CSSProperties}>
               <div className="member-art">
                 <span className="member-watermark" aria-hidden="true">{item.name}</span>
                 <img src={item.image} alt={item.alt} width={item.image.endsWith('.jpg') ? 1024 : 1375} height={item.image.endsWith('.jpg') ? 572 : 768} loading="lazy" decoding="async" />
-                <div className="member-caption"><span className="agent-dot" /> TRACEHOUND / {item.name.toUpperCase()}<span>0{index + 1}</span></div>
+                <div className="member-caption"><span className="agent-dot" /> TRACEHOUND / {item.name.toUpperCase()} · {item.specialty.toUpperCase()}<span>0{index + 1}</span></div>
               </div>
               <div className="member-copy">
-                <p className="eyebrow">Meet {item.name} <span className="member-count">/ 0{index + 1}</span></p>
-                <h3 id={`${item.name.toLowerCase()}-title`}>{item.role}</h3>
+                <p className="eyebrow">Meet {item.name} <span className="member-count">/ {item.specialty} specialist</span></p>
+                <h3 id={`${item.id}-title`}>{item.role}</h3>
                 <p className="profile-description">{item.description}</p>
                 <dl className="profile-facts"><div><dt>FOLLOWS</dt><dd>{item.signal}</dd></div><div><dt>BRINGS BACK</dt><dd>{item.output}</dd></div></dl>
-                <a className="member-next text-link" href={index < agents.length - 1 ? `#${agents[index + 1]!.name.toLowerCase()}` : '#how'}>{index < agents.length - 1 ? `Up next: ${agents[index + 1]!.name}` : 'See how they work together'}<span aria-hidden="true">↓</span></a>
+                <a className="member-next text-link" href={index < agents.length - 1 ? `#${agents[index + 1]!.id}` : '#how'}>{index < agents.length - 1 ? `Up next: ${agents[index + 1]!.name}` : 'See how they work together'}<span aria-hidden="true">↓</span></a>
               </div>
             </article>)}
           </div>
