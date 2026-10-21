@@ -1,1 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" rx="12" fill="#284b63"/><path d="M14 11v22q0 5 7 4M9 20h13M28 11v26M28 26q0-7 5-7t5 7v11" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <title>Tracehound</title>
+  <g stroke="#284B63" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9 34 21 18c5-6 13-8 20-4l8 10 10 4-3 9c-2 4-6 6-11 6h-7c-9 0-15 6-16 15"/>
+    <path d="m23 17 4 23c-8 3-15-2-14-11"/>
+    <path d="m51 26 7 2"/>
+  </g>
+  <circle cx="39" cy="23" r="2.2" fill="#284B63"/>
+</svg>

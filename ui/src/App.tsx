@@ -1,5 +1,8 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import './App.css'
+import InvestigationFlow from './InvestigationFlow'
+import AgentThread from './AgentThread'
+import { useSmoothScroll } from './useSmoothScroll'
 
 const agents = [
   { name: 'Triage', image: '/agents/triage.png', alt: 'Blue investigator coordinating scope and priorities', role: 'One alert. A coordinated team.', description: 'Sizes up the incident and directs the right specialists toward the evidence. Keeps the investigation focused as new findings arrive.', color: 'var(--agent-triage)', signal: 'Incoming alerts & context', output: 'A focused investigation plan' },
@@ -13,6 +16,7 @@ const agents = [
 const year = new Date().getFullYear()
 
 function App() {
+  useSmoothScroll()
   const [selected, setSelected] = useState(0)
 
   useEffect(() => {
@@ -27,10 +31,11 @@ function App() {
   return (
     <>
       <header className="nav">
-        <a className="brand" href="#" aria-label="Tracehound home"><span className="brand-mark" aria-hidden="true">t<span>h</span></span>Tracehound<span className="brand-period">.</span></a>
+        <a className="brand" href="#" aria-label="Tracehound home"><img className="brand-symbol" src="/tracehound-mark.svg" alt="" width="40" height="40" /><span>Tracehound</span></a>
         <nav aria-label="Main navigation">
           <a href="#agents">Agents</a>
           <a href="#how">How it works</a>
+          <a className="nav-developer" href="https://www.linkedin.com/in/yuvraaj-singh/" target="_blank" rel="noopener noreferrer">Meet the developer <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></a>
         </nav>
       </header>
 
@@ -38,14 +43,13 @@ function App() {
         <section className="hero" aria-labelledby="hero-title">
           <div className="hero-intro">
             <div><p className="eyebrow"><span /> AI-powered incident investigation</p><h1 id="hero-title">Your next incident.<br /><span>Their next case.</span></h1></div>
-            <div className="hero-summary"><p>Meet Tracehound. Six AI specialists following the evidence from the first alert to the likely root cause.</p></div>
+            <div className="hero-summary"><p>Six AI specialists turn scattered telemetry into likely causes, cited evidence, and clear next checks.</p></div>
           </div>
 
           <div className="agent-stage">
             <div className="stage-caption"><span>THE INVESTIGATION UNIT</span><span>06 SPECIALISTS / ONE SHARED MISSION</span></div>
             <div className="stage-word" aria-hidden="true">ON THE CASE.</div>
             <img className="hero-image" src="/agents-hero-hd.png" alt="The Tracehound team: six colorful, fuzzy AI investigators with tools for logs, metrics, triage, dependencies, hypotheses, and deploys" fetchPriority="high" width="1680" height="936" />
-            <div className="stage-note"> Different instincts.<br />Shared evidence.</div>
           </div>
 
           <a className="team-scroll" href="#agents"><span>Six specialists. Meet them one by one.</span><span aria-hidden="true">Scroll to explore ↓</span></a>
@@ -57,6 +61,7 @@ function App() {
             {agents.map((item, index) => <a key={item.name} href={`#${item.name.toLowerCase()}`} aria-current={selected === index ? 'location' : undefined} className={`agent-tab ${selected === index ? 'selected' : ''}`} style={{ '--agent-color': item.color } as CSSProperties}><span className="agent-index">0{index + 1}</span><span className="agent-dot" /><span>{item.name}</span></a>)}
           </nav>
           <div className="team-members">
+            <AgentThread />
             {agents.map((item, index) => <article key={item.name} id={item.name.toLowerCase()} data-index={index} className={`team-member ${selected === index ? 'is-current' : ''}`} aria-labelledby={`${item.name.toLowerCase()}-title`} style={{ '--agent-color': item.color } as CSSProperties}>
               <div className="member-art">
                 <span className="member-watermark" aria-hidden="true">{item.name}</span>
@@ -74,16 +79,9 @@ function App() {
           </div>
         </section>
 
-        <section id="how" className="how" aria-labelledby="how-title">
-          <div className="section-heading"><p className="eyebrow">Less noise. More understanding.</p><h2 id="how-title">An investigation.<br />Not another dashboard.</h2><p>Specialists work together to turn scattered signals into an explanation you can inspect.</p></div>
-          <ol className="steps">
-            <li><span className="step-number">01 /</span><h3>Start with the signal.</h3><p>An alert gives Triage a starting point. It scopes the incident and coordinates the investigation.</p><span className="step-tag">ALERT → CONTEXT</span></li>
-            <li><span className="step-number">02 /</span><h3>Follow every lead.</h3><p>Logs, Metrics, Dependency, and Deploy examine the evidence from their own perspectives.</p><span className="step-tag">CONTEXT → EVIDENCE</span></li>
-            <li><span className="step-number">03 /</span><h3>Make the case.</h3><p>Hypothesis brings the findings together into ranked explanations, with evidence you can check.</p><span className="step-tag">EVIDENCE → UNDERSTANDING</span></li>
-          </ol>
-        </section>
+        <InvestigationFlow />
       </main>
-      <footer className="footer"><a className="brand" href="#">Tracehound.</a><p>Follow the evidence.</p><span>© {year} Tracehound</span></footer>
+      <footer className="footer"><a className="brand" href="#" aria-label="Tracehound home"><img className="brand-symbol" src="/tracehound-mark.svg" alt="" width="32" height="32" /><span>Tracehound</span></a><p>Follow the evidence.</p><div className="footer-links"><a href="https://www.linkedin.com/in/yuvraaj-singh/" target="_blank" rel="noopener noreferrer">Meet the developer <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></a><span>© {year} Tracehound</span></div></footer>
     </>
   )
 }
