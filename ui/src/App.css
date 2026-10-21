@@ -1,0 +1,120 @@
+.nav { max-width: 1512px; margin: auto; padding: 26px 4.5%; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--color-line); }
+.brand { display: inline-flex; align-items: center; font-size: 21px; font-weight: 750; letter-spacing: -1px; }
+.brand-period { color: var(--color-primary); }
+.brand-mark { width: 32px; height: 32px; background: var(--color-primary); color: var(--color-white); display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; margin-right: 10px; font-size: 23px; letter-spacing: -4px; padding-right: 4px; }
+.brand-mark span { color: var(--color-white); }
+.nav nav { display: flex; align-items: center; gap: 34px; font-size: 13px; }
+.nav nav a { display: inline-flex; align-items: center; min-height: 44px; transition: color .2s; }
+.nav nav a:hover { color: var(--color-primary); }
+.hero { max-width: 1512px; margin: auto; padding: 0 4.5%; }
+.hero-intro { display: flex; align-items: flex-end; justify-content: space-between; gap: 40px; padding: 38px 0 20px; }
+.eyebrow { font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: 1.65px; margin: 0 0 14px; }
+.eyebrow > span { display: inline-block; width: 6px; height: 6px; background: var(--color-primary); border-radius: 50%; margin-right: 7px; vertical-align: 1px; }
+h1 { font-size: clamp(28px, 3.1vw, 44px); letter-spacing: -.04em; font-weight: 500; line-height: 1.09; margin: 0; }
+h1 > span { color: var(--color-muted); }
+.hero-summary { max-width: 305px; padding-bottom: 3px; }
+.hero-summary p { color: var(--color-muted); font-size: 13px; line-height: 1.65; margin: 0; }
+.text-link { font-size: 12px; font-weight: 650; display: inline-flex; gap: 28px; border-bottom: 1px solid var(--color-line); padding-bottom: 5px; }
+.agent-stage { position: relative; isolation: isolate; overflow: hidden; padding-top: 42px; min-height: 350px; }
+.stage-caption { display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; font-size: 11px; letter-spacing: 1.5px; color: var(--color-muted); position: absolute; inset: 13px 0 auto; }
+.stage-word { position: absolute; top: 23px; left: 0; right: 0; font-size: clamp(58px, 12.5vw, 182px); font-weight: 750; letter-spacing: -.075em; text-align: center; color: var(--color-soft); white-space: nowrap; z-index: -2; line-height: 1.1; }
+.hero-image { display: block; position: relative; width: 92%; height: auto; max-width: 1140px; margin: 0 auto; filter: saturate(var(--hero-saturation)) contrast(var(--art-contrast)) drop-shadow(0 18px 10px rgb(37 46 51 / 8%)); animation: arrive .8s ease both; }
+.stage-note { position: absolute; top: 26%; right: 1%; font-size: 10px; color: var(--color-muted); line-height: 1.6;  }
+.agent-tab { position: relative; display: flex; justify-content: center; align-items: center; gap: 9px; background: transparent; border: 0; border-right: 1px solid var(--color-line); padding: 20px 8px; cursor: pointer; font-size: 12px; color: var(--color-muted); transition: background .2s, color .2s; }
+.agent-tab:last-child { border-right: 0; }
+.agent-tab:hover { background: var(--color-white); color: var(--color-ink); }
+.agent-tab.selected { background: var(--color-white); color: var(--color-ink); }
+.agent-tab.selected::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; background: var(--agent-color); }
+.agent-index { font-variant-numeric: tabular-nums; font-size: 11px; color: var(--color-muted); }
+.agent-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--agent-color); flex-shrink: 0; }
+.profile-description { font-size: 13px; line-height: 1.75; color: var(--color-muted); margin: 0; }
+.profile-facts { margin: 0; padding-left: 26px; border-left: 1px solid var(--color-line); display: grid; gap: 15px; }
+.profile-facts dt { font-variant-numeric: tabular-nums; font-size: 11px; letter-spacing: 1px; color: var(--color-muted); margin-bottom: 5px; }
+.profile-facts dd { font-size: 11px; line-height: 1.5; margin: 0; }
+.how { background: var(--color-white); border-top: 1px solid var(--color-line); padding: 65px max(4.5%, calc((100% - 1376px)/2)); }
+.section-heading { display: grid; grid-template-columns: 1fr 1fr; align-items: end; column-gap: 60px; }
+.section-heading .eyebrow { grid-column: 1 / -1; color: var(--color-muted); }
+.section-heading h2 { font-size: clamp(30px, 3vw, 43px); font-weight: 500; letter-spacing: -.035em; line-height: 1.12; margin: 0; }
+.section-heading > p:last-child { font-size: 14px; line-height: 1.7; max-width: 340px; color: var(--color-muted); margin: 0 0 0 auto; }
+.steps { list-style: none; padding: 0; margin: 42px 0 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; }
+.steps li { border-top: 1px solid var(--color-line); padding-top: 19px; }
+.step-number { font-variant-numeric: tabular-nums; font-size: 11px; color: var(--color-primary); }
+.steps h3 { font-size: 19px; font-weight: 500; letter-spacing: -.5px; margin: 21px 0 10px; }
+.steps p { font-size: 13px; line-height: 1.75; color: var(--color-muted); max-width: 330px; margin: 0 0 25px; }
+.step-tag { font-variant-numeric: tabular-nums; font-size: 11px; letter-spacing: .6px; color: var(--color-secondary); }
+.footer { max-width: 1512px; margin: auto; padding: 28px 4.5%; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.footer .brand { font-size: 17px; }
+.footer p, .footer > span { font-size: 11px; color: var(--color-muted); }
+@keyframes arrive { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@media (min-width: 1600px) { .stage-word { font-size: 182px; } }
+@media (max-width: 900px) {  .profile-facts { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; padding: 18px 0 0; border-left: 0; border-top: 1px solid var(--color-line); } .agent-index { display: none; } .stage-note { display: none; } .steps { gap: 25px; } .hero-image { width: 100%; } }
+@media (max-width: 600px) {
+  .nav { padding: 18px 5%; } .brand { font-size: 18px; } .nav nav { gap: 16px; font-size: 12px; } .hero { padding: 0 5%; } .hero-intro { padding-top: 27px; gap: 16px; flex-direction: column; align-items: flex-start; } h1 { font-size: 33px; } .eyebrow { font-size: 10px; letter-spacing: 1.2px; } .hero-summary { max-width: 330px; } .hero-summary p { font-size: 12px; margin-bottom: 10px; } .text-link { font-size: 11px; }
+  .agent-stage { margin: 0 -5.55%; min-height: 0; padding-top: 53px; } .stage-caption { inset: 16px 5% auto; font-size: 7px; letter-spacing: .6px; } .stage-caption span:last-child { display: none; } .stage-word { top: 40px; font-size: 13vw; } .hero-image { width: 112%; max-width: none; margin-left: -6%; }
+   .agent-tab { padding: 15px 8px; font-size: 11px; gap: 6px; } .agent-tab:nth-child(3) { border-right: 0; } .agent-tab:nth-child(-n+3) { border-bottom: 1px solid var(--color-line); }
+    .profile-facts { gap: 20px; } .profile-description { font-size: 12px; }
+  .how { padding: 40px 5%; } .section-heading { grid-template-columns: 1fr; gap: 18px; } .section-heading .eyebrow { margin: 0; } .section-heading > p:last-child { margin: 0; font-size: 13px; } .steps { grid-template-columns: 1fr; margin-top: 30px; gap: 26px; } .steps h3 { margin-top: 12px; } .steps p { max-width: none; margin-bottom: 15px; } .footer { flex-wrap: wrap; padding: 24px 5%; } .footer p { display: none; }
+}
+
+/* Portraits are already softer than the group illustration. Keep their grading
+   separate, but shared across all six members so their identities stay stable. */
+:root { --hero-saturation: .65; --portrait-saturation: .78; --art-contrast: .96; }
+.team-scroll { display: flex; justify-content: space-between; gap: 20px; border-top: 1px solid var(--color-line); padding: 23px 0 35px; font-size: 11px; color: var(--color-muted); }
+.team-scroll span:last-child { color: var(--color-primary); }
+.team { background: var(--color-white); padding: 50px max(4.5%, calc((100% - 1376px)/2)) 70px; margin: auto; scroll-margin-top: 20px; }
+.team-header { display: flex; justify-content: space-between; align-items: end; gap: 30px; padding-bottom: 32px; }
+.team-header h2 { font-size: clamp(28px, 3vw, 42px); font-weight: 500; letter-spacing: -.035em; margin: 0; }
+.team-header > p { font-size: 13px; line-height: 1.7; color: var(--color-muted); margin: 0; }
+.team-index { position: sticky; top: 0; z-index: 5; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); background: var(--color-white); border-block: 1px solid var(--color-line); }
+.team-index .agent-tab:hover, .team-index .agent-tab.selected { background: var(--color-white); color: var(--agent-color); }
+.team-member { display: grid; grid-template-columns: 1.5fr 1fr; gap: clamp(28px, 5vw, 80px); align-items: center; min-height: min(760px, 88svh); padding: 65px 0; border-bottom: 1px solid var(--color-line); scroll-margin-top: 80px; }
+.member-art { position: relative; isolation: isolate; min-width: 0; background: var(--color-white); border-radius: 12px; overflow: hidden; padding: 55px 0 0; }
+.member-watermark { position: absolute; top: 16px; left: 24px; font-size: clamp(40px, 5.8vw, 88px); letter-spacing: -.065em; font-weight: 750; line-height: 1; color: color-mix(in srgb, var(--agent-color) 18%, var(--color-white)); z-index: -1; }
+.member-art img { width: 100%; height: auto; display: block; mix-blend-mode: multiply; filter: saturate(var(--portrait-saturation)) brightness(1.04); }
+.member-caption { display: flex; align-items: center; gap: 8px; margin: 0 24px; padding: 20px 0; border-top: 1px solid color-mix(in srgb, var(--agent-color) 20%, transparent); color: var(--color-muted); font-size: 10px; font-weight: 500; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
+.member-caption > span:last-child { margin-left: auto; color: var(--agent-color); }
+.member-copy { padding: 20px 0; }
+.member-copy > .eyebrow { color: var(--agent-color); }
+.member-copy .member-count { display: inline; width: auto; height: auto; background: none; border-radius: 0; opacity: .6; margin: 0 0 0 12px; vertical-align: baseline; }
+.member-copy h3 { color: var(--agent-color); font-size: clamp(30px, 3.4vw, 49px); line-height: 1.08; letter-spacing: -.035em; font-weight: 500; margin: 0 0 24px; max-width: 420px; }
+.member-copy .profile-description { font-size: 14px; max-width: 380px; }
+.member-copy .profile-facts { border-left: 0; border-top: 1px solid var(--color-line); padding: 23px 0 0; margin-top: 27px; grid-template-columns: 1fr 1fr; gap: 22px; }
+.member-copy .profile-facts dt { font-size: 11px; }
+.member-copy .profile-facts dd { font-size: 12px; }
+.member-next { margin-top: 35px; color: var(--agent-color); border-color: color-mix(in srgb, var(--agent-color) 35%, transparent); }
+@media (prefers-reduced-motion: no-preference) {
+  .member-copy { transition: transform .6s ease; transform: translateY(12px); }
+  .team-member.is-current .member-copy { transform: translateY(0); }
+}
+@media (max-width: 900px) {
+  .team-member { grid-template-columns: 1.2fr 1fr; gap: 28px; min-height: 650px; }
+  .member-copy h3 { font-size: 34px; }
+  .member-copy .profile-facts { grid-template-columns: 1fr; gap: 16px; }
+  .member-caption { font-size: 10px; margin-inline: 16px; }
+}
+@media (max-width: 600px) {
+  .team { padding: 30px 5% 45px; }
+  .team-header { display: block; padding-bottom: 24px; }
+  .team-header > p { margin-top: 15px; font-size: 12px; }
+  .team-index { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .team-member { grid-template-columns: 1fr; gap: 8px; min-height: 0; padding: 30px 0 38px; scroll-margin-top: 110px; }
+  .member-art { padding-top: 40px; }
+  .member-watermark { font-size: 48px; }
+  .member-copy h3 { font-size: 34px; max-width: 320px; margin-bottom: 18px; }
+  .member-copy .profile-description { font-size: 13px; }
+  .member-copy .profile-facts { grid-template-columns: 1fr 1fr; }
+  .member-next { margin-top: 25px; }
+  .team-scroll { font-size: 10px; padding-bottom: 20px; }
+}
+
+/* Keep the brand accents purposeful: ink blue actions, plum supporting text,
+   bronze only for small numbered details. */
+.step-number { color: var(--color-tertiary); }
+.hero-summary p, .profile-description, .steps p { font-size: 15px; }
+.member-copy .profile-description { font-size: 16px; line-height: 1.7; }
+.member-copy .profile-facts dd { font-size: 13px; }
+@media (max-width: 600px) {
+  .hero-summary p, .member-copy .profile-description, .steps p { font-size: 14px; }
+}
+
+@media (max-width: 360px) { .nav { gap: 12px; } .nav nav { gap: 12px; font-size: 11px; } .nav .brand-mark { display: none; } }

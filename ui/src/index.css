@@ -1,0 +1,33 @@
+/* Brand colors derive from Triage, Hypothesis and Deploy. Agent identity
+   colors are scoped to their own sections; neutral surfaces remain white. */
+:root {
+  --color-primary: #284b63;
+  --color-secondary: #70566f;
+  --color-tertiary: #8a6534;
+  --color-ink: #25272c;
+  --color-muted: #62656c;
+  --color-white: #ffffff;
+  --color-line: #e2e3e6;
+  --color-soft: #edf0f3;
+  --agent-triage: var(--color-primary);
+  --agent-logs: #aa4937;
+  --agent-metrics: #47734e;
+  --agent-dependency: #286f69;
+  --agent-deploy: var(--color-tertiary);
+  --agent-hypothesis: var(--color-secondary);
+  font-family: 'Switzer', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  color: var(--color-ink);
+  background: var(--color-white);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+body { margin: 0; min-width: 320px; }
+a { color: inherit; text-decoration: none; }
+button { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 5px; }
+::selection { background: var(--color-soft); color: var(--color-ink); }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation: none !important; transition: none !important; } }
