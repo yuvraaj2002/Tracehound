@@ -7,11 +7,12 @@ from pathlib import Path
 from pydantic import TypeAdapter
 
 from tracehound.schemas.telemetry import LogLine
+from tracehound.tools.logs.base import LogSource
 
 _LOGS = TypeAdapter(list[LogLine])
 
 
-class FileLogSource:
+class FileLogSource(LogSource):
     """Reads the scenario's ``logs.json`` once and answers queries by service and time."""
 
     def __init__(self, scenario_dir: Path) -> None:

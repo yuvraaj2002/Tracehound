@@ -1655,6 +1655,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "langgraph" },
     { name = "ollama" },
     { name = "pydantic" },
@@ -1674,6 +1675,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.143.3" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "langgraph", specifier = ">=1.2.16" },
     { name = "ollama", specifier = ">=0.6.3" },
     { name = "pydantic", specifier = ">=2.14.1" },
