@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/context'
 import { createIncident, listIncidents, type Incident, type Severity } from '../lib/api'
@@ -36,11 +36,7 @@ export default function Workspace() {
     <div className="auth-page">
       <header className="nav">
         <Link className="brand" to="/" aria-label="Tracehound home"><img className="brand-symbol" src="/tracehound-mark.svg" alt="" width="40" height="40" /><span>Tracehound</span></Link>
-        <div className="account">
-          {avatar ? <img className="account-avatar" src={avatar} alt="" width="36" height="36" referrerPolicy="no-referrer" /> : <span className="account-avatar" aria-hidden="true">{name.slice(0, 1).toUpperCase()}</span>}
-          <div className="account-name"><strong>{name}</strong>{user?.email && user.email !== name && <span>{user.email}</span>}</div>
-          <button type="button" className="button-quiet" onClick={() => void signOut()}>Sign out</button>
-        </div>
+        <AccountMenu name={name} email={user?.email} avatar={avatar} onSignOut={() => void signOut()} />
       </header>
 
       <main className="workspace">
@@ -70,6 +66,34 @@ export default function Workspace() {
           <IncidentForm onCreated={refresh} />
         </div>
       </main>
+    </div>
+  )
+}
+
+function AccountMenu({ name, email, avatar, onSignOut }: { name: string, email?: string, avatar?: string, onSignOut: () => void }) {
+  const [open, setOpen] = useState(false)
+  const root = useRef<HTMLDivElement>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
+
+  // Close on a click outside the menu, or on Escape (returning focus to the avatar).
+  useEffect(() => {
+    if (!open) return
+    const onPointer = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false) }
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') { setOpen(false); trigger.current?.focus() } }
+    document.addEventListener('pointerdown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('pointerdown', onPointer); document.removeEventListener('keydown', onKey) }
+  }, [open])
+
+  return (
+    <div className="account" ref={root}>
+      <button ref={trigger} type="button" className="account-trigger" aria-haspopup="true" aria-expanded={open} aria-controls="account-menu" aria-label={`Account: ${name}`} title={email && email !== name ? `${name}\n${email}` : name} onClick={() => setOpen((value) => !value)}>
+        {avatar ? <img className="account-avatar" src={avatar} alt="" width="36" height="36" referrerPolicy="no-referrer" /> : <span className="account-avatar" aria-hidden="true">{name.slice(0, 1).toUpperCase()}</span>}
+      </button>
+      {open && <div id="account-menu" className="account-menu">
+        <div className="account-name"><strong>{name}</strong>{email && email !== name && <span>{email}</span>}</div>
+        <button type="button" className="button-quiet" onClick={onSignOut}>Sign out</button>
+      </div>}
     </div>
   )
 }
