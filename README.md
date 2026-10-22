@@ -52,3 +52,33 @@ migration into a throwaway schema and drop it afterwards.
 ```bash
 uv run uvicorn tracehound.api.app:create_app --factory
 ```
+
+The API allows browser calls from the origins in `CORS_ORIGINS` (comma-separated, default
+`http://localhost:5173`).
+
+### Authentication (UI)
+
+The UI in `ui/` signs users in with Google or GitHub through Supabase Auth (PKCE flow) and sends
+the session's access token as `Authorization: Bearer <token>` on every API call. Put these in
+`ui/.env.local` (see `ui/.env.example`):
+
+```bash
+VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+VITE_API_URL=http://localhost:8000
+```
+
+```bash
+cd ui && npm ci && npm run dev   # http://localhost:5173
+```
+
+Routes: `/` landing, `/signin`, `/auth/callback` (finishes the OAuth redirect) and `/app`
+(signed-in only).
+
+One-time setup in the Supabase dashboard:
+
+1. **Auth → Providers**: enable Google and GitHub with each provider's OAuth client ID and secret.
+   In the Google Cloud and GitHub OAuth apps, set the authorized callback URL to
+   `https://gtokkvxmjzyutqvohlqq.supabase.co/auth/v1/callback`.
+2. **Auth → URL Configuration**: set Site URL to `http://localhost:5173` and add
+   `http://localhost:5173/auth/callback` to Redirect URLs.

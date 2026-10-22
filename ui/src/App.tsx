@@ -1,8 +1,10 @@
 import { useEffect, useState, type CSSProperties } from 'react'
+import { Link } from 'react-router'
 import './App.css'
 import InvestigationFlow from './InvestigationFlow'
 import AgentThread from './AgentThread'
 import { useSmoothScroll } from './useSmoothScroll'
+import { useAuth } from './auth/context'
 
 const agents = [
   { id: 'triage', name: 'Marshal', specialty: 'Triage', image: '/agents/triage.png', alt: 'Blue investigator coordinating scope and priorities', role: 'One alert. A coordinated team.', description: 'Sizes up the incident and directs the right specialists toward the evidence. Keeps the investigation focused as new findings arrive.', color: 'var(--agent-triage)', signal: 'Incoming alerts & context', output: 'A focused investigation plan' },
@@ -17,6 +19,7 @@ const year = new Date().getFullYear()
 
 function App() {
   useSmoothScroll()
+  const { session } = useAuth()
   const [selected, setSelected] = useState(0)
 
   useEffect(() => {
@@ -36,7 +39,7 @@ function App() {
           <a href="#agents">Agents</a>
           <a href="#how">How it works</a>
           <a className="nav-developer" href="https://www.linkedin.com/in/yuvraaj-singh/" target="_blank" rel="noopener noreferrer">Meet the developer <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></a>
-          <a className="nav-cta" href="https://github.com/yuvraaj2002/Tracehound#development" target="_blank" rel="noopener noreferrer">Get started <span aria-hidden="true">→</span><span className="sr-only"> (opens in a new tab)</span></a>
+          <Link className="nav-cta" to={session ? '/app' : '/signin'}>Get started <span aria-hidden="true">→</span></Link>
         </nav>
       </header>
 

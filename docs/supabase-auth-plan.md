@@ -76,7 +76,7 @@ Docker.
 3. Set the Site URL and redirect URLs (`http://localhost:5173` for Vite dev, production
    domain later).
 4. Environment variables:
-   - UI: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+   - UI: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`
    - API: `SUPABASE_URL`, `SUPABASE_JWKS_URL`
    - The service-role key is not needed yet and must never reach the UI.
 
