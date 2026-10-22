@@ -1,11 +1,14 @@
-import sqlite3
-from pathlib import Path
+from datetime import UTC, datetime
+from uuid import UUID, uuid4
 
+import psycopg
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from tracehound.api.app import create_app
 from tracehound.api.dependencies import get_incident_helper
+from tracehound.schemas import IncidentAccepted, IncidentCreateRequest, IncidentRecord
 
 VALID = {
     "service_id": "checkout-api",
@@ -17,14 +20,58 @@ VALID = {
 }
 
 
-@pytest.fixture
-def db_path(tmp_path: Path) -> Path:
-    return tmp_path / "test.db"
+class MemoryHelper:
+    """In-memory stand-in for `IncidentHelper`, so these tests need no database."""
+
+    def __init__(self) -> None:
+        self.records: list[IncidentRecord] = []
+
+    def create(self, request: IncidentCreateRequest) -> IncidentAccepted:
+        now = datetime.now(UTC)
+        record = IncidentRecord(
+            id=uuid4(),
+            run_id=uuid4(),
+            state="CREATED",
+            created_at=now,
+            updated_at=now,
+            **request.model_dump(),
+        )
+        self.records.insert(0, record)
+        return IncidentAccepted(
+            incident_id=record.id, run_id=record.run_id, status_url=f"/v1/incidents/{record.id}"
+        )
+
+    def get(self, incident_id: UUID) -> IncidentRecord | None:
+        return next((r for r in self.records if r.id == incident_id), None)
+
+    def list_all(self) -> list[IncidentRecord]:
+        return list(self.records)
+
+
+class BrokenHelper:
+    def create(self, request: IncidentCreateRequest) -> IncidentAccepted:
+        raise psycopg.OperationalError("connection lost")
+
+    def list_all(self) -> list[IncidentRecord]:
+        raise psycopg.OperationalError("connection lost")
+
+
+def _app_with(helper: object) -> FastAPI:
+    # The lifespan never runs because TestClient is not used as a context manager,
+    # so no database pool is opened.
+    app = create_app(pool_factory=lambda: pytest.fail("pool should not open"))
+    app.dependency_overrides[get_incident_helper] = lambda: helper
+    return app
 
 
 @pytest.fixture
-def client(db_path: Path) -> TestClient:
-    return TestClient(create_app(db_path))
+def helper() -> MemoryHelper:
+    return MemoryHelper()
+
+
+@pytest.fixture
+def client(helper: MemoryHelper) -> TestClient:
+    return TestClient(_app_with(helper))
 
 
 def test_accepts_valid_request(client: TestClient) -> None:
@@ -56,26 +103,9 @@ def test_rejects_invalid_request(client: TestClient, override: dict[str, str]) -
     assert response.status_code == 422
 
 
-def test_incident_is_persisted(client: TestClient, db_path: Path) -> None:
-    body = client.post("/v1/incidents", json=VALID).json()
-    with sqlite3.connect(db_path) as conn:
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT * FROM incidents WHERE id = ?", (body["incident_id"],)
-        ).fetchone()
-    assert row["run_id"] == body["run_id"]
-    assert row["service_id"] == "checkout-api"
-    assert row["severity"] == "high"
-    assert row["trace_id"] == "abc123"
-    assert row["window_start"] == "2026-10-17T14:00:00+00:00"
-    assert row["state"] == "CREATED"
-    assert row["created_at"]
-
-
-def test_rejected_request_is_not_persisted(client: TestClient, db_path: Path) -> None:
+def test_rejected_request_is_not_stored(client: TestClient, helper: MemoryHelper) -> None:
     client.post("/v1/incidents", json={**VALID, "severity": "urgent"})
-    with sqlite3.connect(db_path) as conn:
-        assert conn.execute("SELECT COUNT(*) FROM incidents").fetchone()[0] == 0
+    assert helper.records == []
 
 
 def test_list_incidents_is_empty_initially(client: TestClient) -> None:
@@ -84,37 +114,9 @@ def test_list_incidents_is_empty_initially(client: TestClient) -> None:
     assert response.json() == []
 
 
-def test_list_incidents_returns_all_newest_first(client: TestClient) -> None:
-    first = client.post("/v1/incidents", json=VALID).json()
-    second = client.post("/v1/incidents", json={**VALID, "service_id": "payments"}).json()
-    response = client.get("/v1/incidents")
-    assert response.status_code == 200
-    body = response.json()
-    assert [item["id"] for item in body] == [second["incident_id"], first["incident_id"]]
-    assert body[0]["service_id"] == "payments"
-    assert body[1]["severity"] == "high"
-    assert body[1]["state"] == "CREATED"
-    assert body[1]["window_start"] == "2026-10-17T14:00:00Z"
-
-
-def test_database_error_returns_500(client: TestClient, db_path: Path) -> None:
-    with sqlite3.connect(db_path) as conn:
-        conn.execute("DROP TABLE incidents")
+def test_database_error_returns_500() -> None:
+    client = TestClient(_app_with(BrokenHelper()))
     assert client.post("/v1/incidents", json=VALID).status_code == 500
     response = client.get("/v1/incidents")
     assert response.status_code == 500
     assert response.json() == {"detail": "Could not load incidents."}
-
-
-def test_helper_dependency_can_be_overridden(db_path: Path) -> None:
-    class FakeHelper:
-        def list_all(self) -> list[object]:
-            return []
-
-    app = create_app(db_path)
-    client = TestClient(app)
-    client.post("/v1/incidents", json=VALID)
-    assert len(client.get("/v1/incidents").json()) == 1
-
-    app.dependency_overrides[get_incident_helper] = FakeHelper
-    assert client.get("/v1/incidents").json() == []

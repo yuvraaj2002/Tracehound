@@ -1,5 +1,5 @@
-"""Local SQLite database setup. Table-specific queries live in `tracehound.helpers`."""
+"""PostgreSQL connection setup. Table-specific queries live in `tracehound.helpers`."""
 
-from tracehound.db.setup import connect, init_db
+from tracehound.db.setup import create_pool, database_url
 
-__all__ = ["connect", "init_db"]
+__all__ = ["create_pool", "database_url"]

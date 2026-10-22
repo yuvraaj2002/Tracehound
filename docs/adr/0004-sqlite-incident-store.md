@@ -1,6 +1,6 @@
 # ADR 0004: SQLite for local incident persistence
 
-- Status: Accepted
+- Status: Superseded by ADR 0006
 - Date: 2026-10-17
 
 ## Context

@@ -1,35 +1,29 @@
-"""Local SQLite database setup: connections and schema creation."""
+"""PostgreSQL connection pool setup. The schema lives in `supabase/migrations`."""
 
-import sqlite3
-from contextlib import closing
-from pathlib import Path
+import os
 
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS incidents (
-    id           TEXT PRIMARY KEY,
-    run_id       TEXT NOT NULL,
-    service_id   TEXT NOT NULL,
-    symptom      TEXT NOT NULL,
-    severity     TEXT NOT NULL,
-    window_start TEXT NOT NULL,
-    window_end   TEXT NOT NULL,
-    trace_id     TEXT,
-    state        TEXT NOT NULL DEFAULT 'CREATED',
-    created_at   TEXT NOT NULL,
-    updated_at   TEXT NOT NULL
-);
-"""
+from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
 
 
-def connect(path: Path) -> sqlite3.Connection:
-    """Open a connection whose rows can be read by column name."""
-    conn = sqlite3.connect(path)
-    conn.row_factory = sqlite3.Row
-    return conn
+def database_url() -> str:
+    """Return `DATABASE_URL`, failing early with a clear message when it is unset."""
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        raise RuntimeError("DATABASE_URL is not set. Add it to .env (see README).")
+    return url
 
 
-def init_db(path: Path) -> None:
-    """Create the database file and all tables if they do not exist yet."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with closing(connect(path)) as conn, conn:
-        conn.executescript(_SCHEMA)
+def create_pool(url: str, **connect_kwargs: object) -> ConnectionPool:
+    """Open a small pool whose rows can be read by column name.
+
+    Server-side prepared statements are off so the pool also works behind Supabase's
+    transaction pooler.
+    """
+    return ConnectionPool(
+        url,
+        min_size=1,
+        max_size=5,
+        kwargs={"row_factory": dict_row, "prepare_threshold": None, **connect_kwargs},
+        open=True,
+    )

@@ -1,8 +1,8 @@
 """Incident intake routes."""
 
 import logging
-import sqlite3
 
+import psycopg
 from fastapi import APIRouter, HTTPException, status
 
 from tracehound.api.dependencies import IncidentHelperDep
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/v1/incidents", tags=["incidents"])
 def create_incident(payload: IncidentCreateRequest, helper: IncidentHelperDep) -> IncidentAccepted:
     try:
         return helper.create(payload)
-    except sqlite3.Error as exc:
+    except psycopg.Error as exc:
         logger.exception("Failed to store incident for service %s", payload.service_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -29,7 +29,7 @@ def create_incident(payload: IncidentCreateRequest, helper: IncidentHelperDep) -
 def list_incidents(helper: IncidentHelperDep) -> list[IncidentRecord]:
     try:
         return helper.list_all()
-    except sqlite3.Error as exc:
+    except psycopg.Error as exc:
         logger.exception("Failed to list incidents")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
