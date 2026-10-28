@@ -27,6 +27,7 @@ from tracehound.orchestrator.graph import build_graph
 from tracehound.orchestrator.state import SERDE
 from tracehound.schemas import IncidentRecord
 from tracehound.tools.logs import FileLogSource
+from tracehound.tools.metrics import FileMetricSource
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -92,7 +93,7 @@ def run(scenario: Path, alert: dict, now: datetime, run_dir: Path) -> None:
         TriageAgent(scenario, llm),
         {
             "logs": LogsAgent(FileLogSource(scenario), llm),
-            "metrics": MetricsAgent(scenario, llm),
+            "metrics": MetricsAgent(FileMetricSource(scenario), llm),
             "deploy": DeployAgent(scenario, llm),
             "dependency": DependencyAgent(scenario, llm),
         },

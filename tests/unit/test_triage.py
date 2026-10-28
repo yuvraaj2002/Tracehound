@@ -23,6 +23,7 @@ from tracehound.schemas import (
     Specialist,
 )
 from tracehound.tools.logs import FileLogSource
+from tracehound.tools.metrics import FileMetricSource
 from tracehound.tools.triage import load_deploys, load_topology
 
 SCENARIO = Path(__file__).resolve().parents[2] / "scenarios" / "checkout_db_pool_exhaustion"
@@ -212,7 +213,7 @@ def _graph(incident: IncidentRecord, decision: TriageDecision) -> Any:
         TriageAgent(SCENARIO, FakeLLM(decision)),
         {
             "logs": LogsAgent(FileLogSource(SCENARIO), FakeLLM(logs)),
-            "metrics": MetricsAgent(SCENARIO, FakeLLM(metrics)),
+            "metrics": MetricsAgent(FileMetricSource(SCENARIO), FakeLLM(metrics)),
             "deploy": DeployAgent(SCENARIO, FakeLLM(deploy)),
             "dependency": DependencyAgent(SCENARIO, FakeLLM(dependency)),
         },

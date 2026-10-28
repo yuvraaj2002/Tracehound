@@ -1,7 +1,6 @@
 """Metrics agent: reads the in-scope series and turns the model's citations into Evidence."""
 
 from datetime import UTC, datetime
-from pathlib import Path
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -12,7 +11,7 @@ from tracehound.schemas.evidence import Evidence, EvidenceSource, hash_payload
 from tracehound.schemas.finding import Finding, SpecialistReport
 from tracehound.schemas.telemetry import MetricSeries
 from tracehound.schemas.triage import InvestigationScope, Specialist
-from tracehound.tools.metrics import MetricReader
+from tracehound.tools.metrics import MetricSource
 
 
 class MetricsContext(BaseModel):
@@ -42,10 +41,10 @@ class MetricsAnswer(BaseModel):
 
 
 class MetricsAgent:
-    """Deterministic metric fetch, then one LLM call. Errors propagate to the caller."""
+    """Deterministic metric fetch from any ``MetricSource``, then one LLM call. Errors propagate."""
 
-    def __init__(self, scenario_dir: Path, llm: StructuredLLM) -> None:
-        self._reader = MetricReader(scenario_dir)
+    def __init__(self, source: MetricSource, llm: StructuredLLM) -> None:
+        self._source = source
         self._llm = llm
 
     def __call__(self, scope: InvestigationScope, run_id: UUID) -> SpecialistReport:
@@ -64,7 +63,7 @@ class MetricsAgent:
             services=task.services,
             window_start=scope.change_window_start,
             window_end=scope.symptom_window_end,
-            series=self._reader.fetch(
+            series=self._source.fetch(
                 set(task.services), scope.change_window_start, scope.symptom_window_end
             ),
         )

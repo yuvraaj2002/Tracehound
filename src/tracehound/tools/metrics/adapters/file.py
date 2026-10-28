@@ -1,4 +1,4 @@
-"""Metric tools: time series from a pinned scenario. Never reads ``ground_truth/``."""
+"""File metric source: a pinned scenario's ``metrics.json``. Never reads ``ground_truth/``."""
 
 import json
 from datetime import datetime
@@ -7,11 +7,12 @@ from pathlib import Path
 from pydantic import TypeAdapter
 
 from tracehound.schemas.telemetry import MetricSeries
+from tracehound.tools.metrics.base import MetricSource
 
 _SERIES = TypeAdapter(list[MetricSeries])
 
 
-class MetricReader:
+class FileMetricSource(MetricSource):
     """Reads the scenario's ``metrics.json`` once and answers queries by service and time."""
 
     def __init__(self, scenario_dir: Path) -> None:

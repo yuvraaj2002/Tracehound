@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from tracehound.agents.metrics import MetricsAgent, MetricsAnswer
 from tracehound.schemas import InvestigationScope, Specialist, SpecialistTask, hash_payload
-from tracehound.tools.metrics import MetricReader
+from tracehound.tools.metrics import FileMetricSource
 
 SCENARIO = Path(__file__).resolve().parents[2] / "scenarios" / "checkout_db_pool_exhaustion"
 SERVICES = ["checkout-api", "orders-db"]
@@ -53,18 +53,18 @@ def _answer(*series_ids: str) -> MetricsAnswer:
 
 def test_fetch_filters_services_and_trims_points_to_window() -> None:
     start = datetime(2026, 10, 15, 14, 0, tzinfo=UTC)
-    series = MetricReader(SCENARIO).fetch({"orders-db"}, start, END)
+    series = FileMetricSource(SCENARIO).fetch({"orders-db"}, start, END)
 
     assert {s.id for s in series} == {"met-006", "met-007"}
     assert all(start <= p.timestamp <= END for s in series for p in s.points)
-    assert MetricReader(SCENARIO).fetch({"checkout-api"}, START, START) == []
+    assert FileMetricSource(SCENARIO).fetch({"checkout-api"}, START, START) == []
 
 
 def test_context_has_metrics_question_and_only_scoped_services(
     scope: InvestigationScope,
 ) -> None:
     llm = FakeLLM(_answer("met-002"))
-    MetricsAgent(SCENARIO, llm)(scope, uuid4())
+    MetricsAgent(FileMetricSource(SCENARIO), llm)(scope, uuid4())
 
     user = llm.calls[0]["user"]
     assert user.startswith("<context>\n") and user.endswith("\n</context>")
@@ -74,14 +74,14 @@ def test_context_has_metrics_question_and_only_scoped_services(
 
 def test_citations_become_evidence(scope: InvestigationScope) -> None:
     run_id = uuid4()
-    report = MetricsAgent(SCENARIO, FakeLLM(_answer("met-002", "met-005", "met-002")))(
-        scope, run_id
-    )
+    report = MetricsAgent(
+        FileMetricSource(SCENARIO), FakeLLM(_answer("met-002", "met-005", "met-002"))
+    )(scope, run_id)
 
     assert report.specialist is Specialist.METRICS
     assert [e.id for e in report.evidence] == ["met-002", "met-005"]
     raw = next(
-        s for s in MetricReader(SCENARIO).fetch(set(SERVICES), START, END) if s.id == "met-002"
+        s for s in FileMetricSource(SCENARIO).fetch(set(SERVICES), START, END) if s.id == "met-002"
     )
     evidence = report.evidence[0]
     assert evidence.run_id == run_id
@@ -94,4 +94,6 @@ def test_citations_become_evidence(scope: InvestigationScope) -> None:
 @pytest.mark.parametrize("series_id", ["met-999", "met-008"])  # made up / payments-api
 def test_citing_unseen_series_raises(scope: InvestigationScope, series_id: str) -> None:
     with pytest.raises(ValueError, match="not shown"):
-        MetricsAgent(SCENARIO, FakeLLM(_answer("met-002", series_id)))(scope, uuid4())
+        MetricsAgent(FileMetricSource(SCENARIO), FakeLLM(_answer("met-002", series_id)))(
+            scope, uuid4()
+        )
