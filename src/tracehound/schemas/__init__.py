@@ -26,6 +26,7 @@ from tracehound.schemas.integration import (
     IntegrationList,
     IntegrationStatus,
     IntegrationSummary,
+    IntegrationUpdateRequest,
 )
 from tracehound.schemas.telemetry import Deploy, Edge, ServiceNode, Span, Topology
 from tracehound.schemas.triage import (
@@ -56,6 +57,7 @@ __all__ = [
     "IntegrationList",
     "IntegrationStatus",
     "IntegrationSummary",
+    "IntegrationUpdateRequest",
     "InvestigationScope",
     "ServiceNode",
     "Severity",

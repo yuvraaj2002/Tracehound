@@ -12,8 +12,13 @@ from psycopg import errors
 from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
-from tracehound.schemas import IntegrationCreateRequest, IntegrationList, IntegrationSummary
-from tracehound.schemas.integration import BasicAuth, BearerAuth
+from tracehound.schemas import (
+    IntegrationCreateRequest,
+    IntegrationList,
+    IntegrationSummary,
+    IntegrationUpdateRequest,
+)
+from tracehound.schemas.integration import BasicAuth, BearerAuth, IntegrationAuth
 
 
 def integration_encryption_key() -> bytes:
@@ -65,16 +70,37 @@ class IntegrationManagement:
         self._box = SecretBox(encryption_key)
 
     @staticmethod
-    def split_auth(request: IntegrationCreateRequest) -> tuple[dict[str, Any], str | None]:
-        """Return the config to store in the clear and the secret to encrypt, if any."""
-        config: dict[str, Any] = {**request.config.model_dump(), "auth_type": request.auth.type}
-        match request.auth:
+    def auth_parts(auth: IntegrationAuth) -> tuple[dict[str, Any], str | None]:
+        """Return the auth fields to store in the clear and the secret to encrypt, if any."""
+        match auth:
             case BasicAuth(username=username, password=password):
-                config["username"] = username
-                return config, password.get_secret_value()
+                return {"auth_type": "basic", "username": username}, password.get_secret_value()
             case BearerAuth(token=token):
-                return config, token.get_secret_value()
-        return config, None
+                return {"auth_type": "bearer"}, token.get_secret_value()
+        return {"auth_type": auth.type}, None
+
+    @classmethod
+    def split_auth(cls, request: IntegrationCreateRequest) -> tuple[dict[str, Any], str | None]:
+        """Return the config to store in the clear and the secret to encrypt, if any."""
+        fields, secret = cls.auth_parts(request.auth)
+        return {**request.config.model_dump(), **fields}, secret
+
+    @classmethod
+    def merge_update(
+        cls, config: dict[str, Any], request: IntegrationUpdateRequest
+    ) -> tuple[dict[str, Any], bool, str | None]:
+        """Apply `request` to a stored config.
+
+        Returns the new config, whether the stored secret is replaced, and the new secret.
+        """
+        merged = dict(config)
+        if request.config is not None:
+            merged.update(request.config.model_dump(exclude_unset=True))
+        if request.auth is None:
+            return merged, False, None
+        merged.pop("username", None)
+        fields, secret = cls.auth_parts(request.auth)
+        return {**merged, **fields}, True, secret
 
     def create(self, user_id: UUID, request: IntegrationCreateRequest) -> IntegrationSummary:
         """Store a new integration for `user_id`. Raises `IntegrationExists` on a duplicate kind."""
@@ -115,6 +141,45 @@ class IntegrationManagement:
                 (user_id,),
             ).fetchall()
         return IntegrationList(items=[IntegrationSummary(**row) for row in rows])
+
+    def update(
+        self, user_id: UUID, integration_id: UUID, request: IntegrationUpdateRequest
+    ) -> IntegrationSummary | None:
+        """Change an integration's settings and, if `auth` is sent, its credential.
+
+        The previous test result no longer applies, so the status goes back to untested.
+        Returns None when the integration isn't the user's.
+        """
+        with self._pool.connection() as conn, conn.transaction():
+            current = conn.execute(
+                "SELECT config FROM integrations WHERE id = %s AND user_id = %s FOR UPDATE",
+                (integration_id, user_id),
+            ).fetchone()
+            if current is None:
+                return None
+            config, replace_secret, secret = self.merge_update(current["config"], request)
+            ciphertext = None if secret is None else self._box.encrypt(secret, integration_id.bytes)
+            key_version = None if secret is None else self.KEY_VERSION
+            row = conn.execute(
+                "UPDATE integrations SET config = %(config)s,"
+                " secret_ciphertext = CASE WHEN %(replace)s THEN %(ciphertext)s"
+                " ELSE secret_ciphertext END,"
+                " secret_key_version = CASE WHEN %(replace)s THEN %(key_version)s"
+                " ELSE secret_key_version END,"
+                " status = 'untested', last_tested_at = NULL, last_error = NULL, updated_at = now()"
+                " WHERE id = %(id)s"
+                " RETURNING id, kind, config, secret_ciphertext IS NOT NULL AS has_secret, status,"
+                " last_tested_at, created_at",
+                {
+                    "config": Jsonb(config),
+                    "replace": replace_secret,
+                    "ciphertext": ciphertext,
+                    "key_version": key_version,
+                    "id": integration_id,
+                },
+            ).fetchone()
+        assert row is not None
+        return IntegrationSummary(**row)
 
     def delete(self, user_id: UUID, integration_id: UUID) -> bool:
         """Permanently delete `integration_id` and its encrypted credential.

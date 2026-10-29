@@ -8,7 +8,12 @@ from fastapi import APIRouter, HTTPException, Response, status
 
 from tracehound.api.dependencies import CurrentUserDep, IntegrationManagementDep
 from tracehound.helpers.integration_helper import IntegrationExists
-from tracehound.schemas import IntegrationCreateRequest, IntegrationList, IntegrationSummary
+from tracehound.schemas import (
+    IntegrationCreateRequest,
+    IntegrationList,
+    IntegrationSummary,
+    IntegrationUpdateRequest,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +51,28 @@ def create_integration(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not save the integration.",
         ) from exc
+
+
+@router.patch("/{integration_id}")
+def update_integration(
+    integration_id: UUID,
+    payload: IntegrationUpdateRequest,
+    user: CurrentUserDep,
+    integrations: IntegrationManagementDep,
+) -> IntegrationSummary:
+    try:
+        updated = integrations.update(user.user_id, integration_id, payload)
+    except psycopg.Error as exc:
+        logger.exception(
+            "Failed to update integration %s for user %s", integration_id, user.user_id
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not update the integration.",
+        ) from exc
+    if updated is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found.")
+    return updated
 
 
 @router.delete("/{integration_id}", status_code=status.HTTP_204_NO_CONTENT)

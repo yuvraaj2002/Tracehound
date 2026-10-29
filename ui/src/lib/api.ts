@@ -55,6 +55,10 @@ export type LokiConfig = { url: string, service_label?: string, org_id?: string 
 
 export type IntegrationCreate = { kind: IntegrationKind, config: LokiConfig, auth: IntegrationAuth }
 
+/** Omitted fields keep their value; `org_id: null` clears it. Without `auth` the stored
+ *  credential is kept; with it, the whole credential is replaced. */
+export type IntegrationUpdate = { config?: Partial<LokiConfig>, auth?: IntegrationAuth }
+
 /** The credential is never returned; `has_secret` says whether one is stored. */
 export type IntegrationSummary = {
   id: string
@@ -132,3 +136,5 @@ export const listIntegrations = () => apiFetch<{ items: IntegrationSummary[] }>(
 export const createIntegration = (integration: IntegrationCreate) => apiFetch<IntegrationSummary>('/v1/integrations', { method: 'POST', body: JSON.stringify(integration) })
 
 export const deleteIntegration = (id: string) => apiFetch<void>(`/v1/integrations/${encodeURIComponent(id)}`, { method: 'DELETE' })
+
+export const updateIntegration = (id: string, changes: IntegrationUpdate) => apiFetch<IntegrationSummary>(`/v1/integrations/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(changes) })

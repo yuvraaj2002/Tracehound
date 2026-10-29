@@ -2,11 +2,19 @@
 
 import ipaddress
 import os
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, Self
 from urllib.parse import urlsplit
 from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, SecretStr, field_validator
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    SecretStr,
+    field_validator,
+    model_validator,
+)
 
 IntegrationKind = Literal["loki"]
 IntegrationStatus = Literal["untested", "active", "failing"]
@@ -89,6 +97,45 @@ class IntegrationCreateRequest(_Strict):
     kind: IntegrationKind
     config: LokiConfig
     auth: IntegrationAuth
+
+
+class LokiConfigUpdate(_Strict):
+    """Loki settings to change. Omitted fields keep their value; `org_id: null` clears it."""
+
+    url: str | None = Field(default=None, max_length=2048)
+    service_label: str | None = Field(
+        default=None, min_length=1, max_length=100, pattern=r"^[a-zA-Z_][a-zA-Z0-9_]*$"
+    )
+    org_id: str | None = Field(default=None, min_length=1, max_length=200)
+
+    @field_validator("url")
+    @classmethod
+    def _check_url(cls, url: str | None) -> str | None:
+        return None if url is None else check_backend_url(url)
+
+    @model_validator(mode="after")
+    def _required_fields_not_null(self) -> Self:
+        for name in ("url", "service_label"):
+            if name in self.model_fields_set and getattr(self, name) is None:
+                raise ValueError(f"{name} cannot be null")
+        return self
+
+
+class IntegrationUpdateRequest(_Strict):
+    """Payload for ``PATCH /v1/integrations/{id}``.
+
+    Without `auth` the stored credential is kept, since the client never sees it. With `auth`
+    the whole credential is replaced, so a username can't end up paired with the old password.
+    """
+
+    config: LokiConfigUpdate | None = None
+    auth: IntegrationAuth | None = None
+
+    @model_validator(mode="after")
+    def _changes_something(self) -> Self:
+        if self.auth is None and (self.config is None or not self.config.model_fields_set):
+            raise ValueError("nothing to update: send config, auth or both")
+        return self
 
 
 class IntegrationSummary(BaseModel):

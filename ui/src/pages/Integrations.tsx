@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type RefObject } from 'react'
 import { Link } from 'react-router'
-import { ApiError, createIntegration, deleteIntegration, listIntegrations, type IntegrationAuth, type IntegrationKind, type IntegrationStatus, type IntegrationSummary } from '../lib/api'
+import { ApiError, createIntegration, deleteIntegration, listIntegrations, updateIntegration, type IntegrationAuth, type IntegrationKind, type IntegrationStatus, type IntegrationSummary, type IntegrationUpdate } from '../lib/api'
 import Dialog from '../Dialog'
 import SignedInHeader from '../SignedInHeader'
 import '../auth.css'
@@ -29,7 +29,7 @@ const fetchAll = (): Promise<Load> => listIntegrations().then(
 
 export default function Integrations() {
   const [load, setLoad] = useState<Load>({ status: 'loading' })
-  const [connecting, setConnecting] = useState<Source | null>(null)
+  const [connecting, setConnecting] = useState<{ source: Source, integration?: IntegrationSummary } | null>(null)
   const [disconnecting, setDisconnecting] = useState<{ source: Source, integration: IntegrationSummary } | null>(null)
   const [highlight, setHighlight] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
@@ -55,11 +55,12 @@ export default function Integrations() {
 
   const retry = () => { setLoad({ status: 'loading' }); void fetchAll().then(setLoad) }
 
-  const onCreated = (source: Source, integration: IntegrationSummary) => {
-    setLoad((current) => current.status === 'ready' ? { status: 'ready', items: [...current.items.filter((item) => item.kind !== integration.kind), integration] } : current)
+  const onSaved = (source: Source, integration: IntegrationSummary, edited: boolean) => {
+    // An edit keeps the row in place; a new connection goes after the existing ones.
+    setLoad((current) => current.status !== 'ready' ? current : { status: 'ready', items: edited ? current.items.map((item) => item.id === integration.id ? integration : item) : [...current.items.filter((item) => item.kind !== integration.kind), integration] })
     setConnecting(null)
     setHighlight(integration.id)
-    setStatus(`${source.product} connected`)
+    setStatus(`${source.product} ${edited ? 'updated' : 'connected'}`)
   }
 
   const onDeleted = (source: Source, integration: IntegrationSummary) => {
@@ -92,7 +93,7 @@ export default function Integrations() {
             <ul>
               {sources.map((source) => {
                 const integration = load.status === 'ready' ? load.items.find((item) => item.kind === source.kind) : undefined
-                return <SourceRow key={source.signal} source={source} integration={integration} loading={load.status === 'loading'} unavailable={load.status === 'error'} isNew={integration?.id === highlight} onConnect={() => setConnecting(source)} onDisconnect={(item) => setDisconnecting({ source, integration: item })} />
+                return <SourceRow key={source.signal} source={source} integration={integration} loading={load.status === 'loading'} unavailable={load.status === 'error'} isNew={integration?.id === highlight} onConnect={() => setConnecting({ source })} onEdit={(item) => setConnecting({ source, integration: item })} onDisconnect={(item) => setDisconnecting({ source, integration: item })} />
               })}
             </ul>
           </section>
@@ -102,7 +103,7 @@ export default function Integrations() {
       <div className="toast-region" role="status" aria-live="polite">{status && <p className="toast">{status}</p>}</div>
 
       {disconnecting && <DisconnectDialog source={disconnecting.source} integration={disconnecting.integration} fallbackFocus={heading} onDeleted={() => onDeleted(disconnecting.source, disconnecting.integration)} onClose={() => setDisconnecting(null)} />}
-      {connecting && <ConnectLokiDialog source={connecting} fallbackFocus={heading} onCreated={(integration) => onCreated(connecting, integration)} onClose={() => setConnecting(null)} />}
+      {connecting && <ConnectLokiDialog source={connecting.source} integration={connecting.integration} fallbackFocus={heading} onSaved={(integration) => onSaved(connecting.source, integration, connecting.integration !== undefined)} onClose={() => setConnecting(null)} />}
     </>
   )
 }
@@ -112,13 +113,14 @@ function AgentFace({ source }: { source: Source }) {
   return <span className="agent-face" aria-hidden="true"><img src={source.face} alt="" width="96" height="96" loading="lazy" decoding="async" /></span>
 }
 
-function SourceRow({ source, integration, loading, unavailable, isNew, onConnect, onDisconnect }: { source: Source, integration?: IntegrationSummary, loading: boolean, unavailable: boolean, isNew: boolean, onConnect: () => void, onDisconnect: (integration: IntegrationSummary) => void }) {
+function SourceRow({ source, integration, loading, unavailable, isNew, onConnect, onEdit, onDisconnect }: { source: Source, integration?: IntegrationSummary, loading: boolean, unavailable: boolean, isNew: boolean, onConnect: () => void, onEdit: (integration: IntegrationSummary) => void, onDisconnect: (integration: IntegrationSummary) => void }) {
   const titleId = `source-${source.signal.toLowerCase()}`
   const action = () => {
     if (!source.kind) return <span className="source-soon">Coming soon</span>
     if (loading) return <span className="skeleton source-skeleton" aria-hidden="true" />
     if (integration) return <>
       <span className={`source-status is-${integration.status}`}><span aria-hidden="true" />{statusLabel[integration.status]}</span>
+      <button type="button" className="button-quiet" onClick={() => onEdit(integration)} aria-label={`Edit ${source.product}`}>Edit</button>
       <button type="button" className="button-quiet button-danger" onClick={() => onDisconnect(integration)} aria-label={`Disconnect ${source.product}`}>Disconnect</button>
     </>
     return <button type="button" className="button-primary" onClick={onConnect} disabled={unavailable} aria-describedby={titleId}>Connect <span aria-hidden="true">+</span></button>
@@ -186,33 +188,60 @@ const authOptions: { value: AuthType, label: string, hint: string }[] = [
   { value: 'none', label: 'None', hint: 'Only for Loki on a private network that needs no credentials.' },
 ]
 
-function ConnectLokiDialog({ source, fallbackFocus, onCreated, onClose }: { source: Source, fallbackFocus: RefObject<HTMLElement | null>, onCreated: (integration: IntegrationSummary) => void, onClose: () => void }) {
-  const [url, setUrl] = useState('')
-  const [authType, setAuthType] = useState<AuthType>('basic')
-  const [username, setUsername] = useState('')
+/** Connects Loki, or edits an existing connection when `integration` is given. The stored token
+ *  is never sent back to the browser, so an edit leaves it alone unless a new one is typed. */
+function ConnectLokiDialog({ source, integration, fallbackFocus, onSaved, onClose }: { source: Source, integration?: IntegrationSummary, fallbackFocus: RefObject<HTMLElement | null>, onSaved: (integration: IntegrationSummary) => void, onClose: () => void }) {
+  const stored = integration?.config
+  const [url, setUrl] = useState(stored?.url ?? '')
+  const [authType, setAuthType] = useState<AuthType>(stored?.auth_type ?? 'basic')
+  const [username, setUsername] = useState(stored?.username ?? '')
   // The credential lives only in this state and is sent once, over the API, to be encrypted.
   const [secret, setSecret] = useState('')
   const [showSecret, setShowSecret] = useState(false)
-  const [serviceLabel, setServiceLabel] = useState('service_name')
-  const [orgId, setOrgId] = useState('')
+  const [serviceLabel, setServiceLabel] = useState(stored?.service_label ?? 'service_name')
+  const [orgId, setOrgId] = useState(stored?.org_id ?? '')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const trimmedUrl = url.trim()
+  const label = serviceLabel.trim() || 'service_name'
+  const org = orgId.trim() || null
   const urlProblem = trimmedUrl && !/^https?:\/\/[^\s/?#]+/i.test(trimmedUrl) ? 'Enter a full URL, starting with https://' : null
   const labelProblem = serviceLabel.trim() && !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(serviceLabel.trim()) ? 'Letters, digits and underscores; it can’t start with a digit.' : null
-  const complete = Boolean(trimmedUrl) && !urlProblem && !labelProblem && (authType === 'none' || (authType === 'bearer' ? secret : username.trim() && secret))
+
+  // Editing: the stored secret can be kept only while the auth type and user ID stay the same.
+  const editing = stored !== undefined
+  const sameAuth = editing && authType === stored.auth_type && (authType !== 'basic' || username.trim() === (stored.username ?? ''))
+  const canKeepSecret = sameAuth && authType !== 'none' && Boolean(integration?.has_secret)
+  const needsSecret = authType !== 'none' && !canKeepSecret
+  const authComplete = authType === 'none' || ((authType === 'bearer' || username.trim()) && (secret || !needsSecret))
+
+  const changes: IntegrationUpdate = {}
+  if (editing) {
+    const config: IntegrationUpdate['config'] = {}
+    if (trimmedUrl.replace(/\/+$/, '') !== stored.url) config.url = trimmedUrl
+    if (label !== stored.service_label) config.service_label = label
+    if (org !== stored.org_id) config.org_id = org
+    if (Object.keys(config).length) changes.config = config
+  }
+  const auth: IntegrationAuth = authType === 'basic' ? { type: 'basic', username: username.trim(), password: secret } : authType === 'bearer' ? { type: 'bearer', token: secret } : { type: 'none' }
+  if (editing && (!sameAuth || secret)) changes.auth = auth
+  const unchanged = editing && !changes.config && !changes.auth
+  const complete = Boolean(trimmedUrl) && !urlProblem && !labelProblem && Boolean(authComplete) && !unchanged
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!complete || submitting) return
     setSubmitting(true)
     setError(null)
-    const auth: IntegrationAuth = authType === 'basic' ? { type: 'basic', username: username.trim(), password: secret } : authType === 'bearer' ? { type: 'bearer', token: secret } : { type: 'none' }
     try {
-      onCreated(await createIntegration({ kind: 'loki', config: { url: trimmedUrl, service_label: serviceLabel.trim() || 'service_name', org_id: orgId.trim() || null }, auth }))
+      onSaved(integration
+        ? await updateIntegration(integration.id, changes)
+        : await createIntegration({ kind: 'loki', config: { url: trimmedUrl, service_label: label, org_id: org }, auth }))
     } catch (err) {
-      setError(err instanceof ApiError && err.status === 409 ? 'You already have a Loki connection. Reload the page to see it.' : message(err, 'Could not save the connection.'))
+      setError(err instanceof ApiError && err.status === 409 ? 'You already have a Loki connection. Reload the page to see it.'
+        : err instanceof ApiError && err.status === 404 ? 'This connection no longer exists. Reload the page to see your integrations.'
+        : message(err, 'Could not save the connection.'))
       setSubmitting(false)
     }
   }
@@ -223,10 +252,14 @@ function ConnectLokiDialog({ source, fallbackFocus, onCreated, onClose }: { sour
     <Dialog labelledBy="connect-dialog-title" describedBy="connect-dialog-intro" onDismiss={submitting ? null : onClose} fallbackFocus={fallbackFocus} wide>
       <form className="dialog-form connect-form" onSubmit={submit} noValidate style={{ '--source-color': source.color } as CSSProperties}>
         <div className="connect-header">
-          <AgentFace source={source} />
-          <p className="eyebrow"><span /> {source.signal} · {source.name}, {source.agent}</p>
-          <h2 id="connect-dialog-title">Connect {source.product}</h2>
-          <p id="connect-dialog-intro">Tracehound runs read-only LogQL queries against this Loki when it investigates an incident.</p>
+          <div className="connect-title">
+            <AgentFace source={source} />
+            <div>
+              <p className="eyebrow"><span /> {source.signal} · {source.name}, {source.agent}</p>
+              <h2 id="connect-dialog-title">{editing ? 'Edit' : 'Connect'} {source.product}</h2>
+            </div>
+          </div>
+          <p id="connect-dialog-intro">{editing ? 'Saving changes marks the connection as not tested, since the old result no longer applies.' : 'Tracehound runs read-only LogQL queries against this Loki when it investigates an incident.'}</p>
         </div>
 
         <div className="connect-field">
@@ -254,9 +287,11 @@ function ConnectLokiDialog({ source, fallbackFocus, onCreated, onClose }: { sour
           <div className="connect-field">
             <label htmlFor="loki-secret">{authType === 'basic' ? 'Token or password' : 'Token'}</label>
             <div className="secret-input">
-              <input id="loki-secret" type={showSecret ? 'text' : 'password'} value={secret} onChange={(event) => setSecret(event.target.value)} placeholder={authType === 'basic' ? 'glc_…' : 'eyJ…'} autoComplete="new-password" spellCheck={false} />
+              <input id="loki-secret" type={showSecret ? 'text' : 'password'} value={secret} onChange={(event) => setSecret(event.target.value)} placeholder={authType === 'basic' ? 'glc_…' : 'eyJ…'} autoComplete="new-password" spellCheck={false} aria-describedby={canKeepSecret ? 'loki-secret-hint' : undefined} />
               <button type="button" onClick={() => setShowSecret((value) => !value)} aria-pressed={showSecret} aria-label={showSecret ? 'Hide token' : 'Show token'}>{showSecret ? 'Hide' : 'Show'}</button>
             </div>
+            {canKeepSecret && <p id="loki-secret-hint" className="field-hint">Leave blank to keep the current token.</p>}
+            {editing && !canKeepSecret && stored.auth_type !== 'none' && <p className="field-hint">{authType === stored.auth_type ? 'A new user ID needs its token too.' : 'Enter the token for the new method.'}</p>}
           </div>
         </div>}
 
@@ -278,13 +313,13 @@ function ConnectLokiDialog({ source, fallbackFocus, onCreated, onClose }: { sour
 
         {authType !== 'none' && <div className="connect-callout">
           <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.4" /><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" fill="none" stroke="currentColor" strokeWidth="1.4" /></svg>
-          <p>Your token is encrypted before it’s stored and is never shown again. Use a read-only token, so Tracehound can query logs but never change them.</p>
+          <p>{canKeepSecret ? 'The current token stays encrypted and is never shown. A new one replaces it for good.' : 'Your token is encrypted before it’s stored and is never shown again. Use a read-only token, so Tracehound can query logs but never change them.'}</p>
         </div>}
 
         {error && <p className="form-error" role="alert">{error}</p>}
         <div className="dialog-actions">
           <button type="button" className="button-quiet" onClick={onClose} disabled={submitting}>Cancel</button>
-          <button type="submit" className="button-primary" disabled={!complete || submitting}>{submitting ? 'Saving…' : 'Save connection'}</button>
+          <button type="submit" className="button-primary" disabled={!complete || submitting}>{submitting ? 'Saving…' : editing ? (unchanged ? 'No changes' : 'Save changes') : 'Save connection'}</button>
         </div>
       </form>
     </Dialog>

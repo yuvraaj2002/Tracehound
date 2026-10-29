@@ -72,3 +72,53 @@ def test_delete_removes_row_and_frees_kind(client: TestClient, pool: ConnectionP
     assert row is None
     assert client.delete(f"/v1/integrations/{created['id']}").status_code == 404
     assert client.post("/v1/integrations", json=GRAFANA_CLOUD).status_code == 201
+
+
+def test_update_keeps_or_replaces_secret(client: TestClient, pool: ConnectionPool) -> None:
+    created = client.post("/v1/integrations", json=GRAFANA_CLOUD).json()
+    integration_id = UUID(created["id"])
+    with pool.connection() as conn:
+        conn.execute(
+            "UPDATE integrations SET status = 'active', last_tested_at = now(),"
+            " last_error = 'old' WHERE id = %s",
+            (integration_id,),
+        )
+        before = conn.execute(
+            "SELECT * FROM integrations WHERE id = %s", (integration_id,)
+        ).fetchone()
+    assert before is not None
+
+    patched = client.patch(
+        f"/v1/integrations/{integration_id}",
+        json={"config": {"url": "https://logs-prod-020.grafana.net"}},
+    )
+    assert patched.status_code == 200
+    assert patched.json()["status"] == "untested"
+    with pool.connection() as conn:
+        row = conn.execute("SELECT * FROM integrations WHERE id = %s", (integration_id,)).fetchone()
+    assert row is not None
+    assert row["config"]["url"] == "https://logs-prod-020.grafana.net"
+    assert row["config"]["username"] == "123456"
+    assert row["secret_ciphertext"] == before["secret_ciphertext"]
+    assert (row["status"], row["last_tested_at"], row["last_error"]) == ("untested", None, None)
+    assert row["updated_at"] > before["updated_at"]
+
+    new_auth = {"type": "basic", "username": "654321", "password": "glc_rotated"}
+    assert (
+        client.patch(f"/v1/integrations/{integration_id}", json={"auth": new_auth}).status_code
+        == 200
+    )
+    with pool.connection() as conn:
+        row = conn.execute("SELECT * FROM integrations WHERE id = %s", (integration_id,)).fetchone()
+    assert row is not None
+    assert row["config"]["username"] == "654321"
+    box = SecretBox(integration_encryption_key())
+    assert box.decrypt(row["secret_ciphertext"], integration_id.bytes) == "glc_rotated"
+
+    none_auth = {"auth": {"type": "none"}}
+    assert client.patch(f"/v1/integrations/{integration_id}", json=none_auth).status_code == 200
+    with pool.connection() as conn:
+        row = conn.execute("SELECT * FROM integrations WHERE id = %s", (integration_id,)).fetchone()
+    assert row is not None
+    assert (row["secret_ciphertext"], row["secret_key_version"]) == (None, None)
+    assert "username" not in row["config"]

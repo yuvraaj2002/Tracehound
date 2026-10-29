@@ -70,6 +70,8 @@ Losing this key makes every stored credential unreadable. Backend URLs must be h
 point at private addresses; set `ALLOW_INSECURE_INTEGRATION_URLS=1` locally to allow
 `http://localhost:3100` and similar.
 
+`PATCH /v1/integrations/{id}` changes the settings; the stored credential is kept unless `auth`
+is sent, which replaces it whole. Any change sets the status back to `untested`.
 `DELETE /v1/integrations/{id}` removes an integration and its stored credential for good, so the
 user can connect that backend again.
 

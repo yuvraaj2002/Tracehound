@@ -17,7 +17,12 @@ from tracehound.helpers.integration_helper import (
     SecretBox,
     integration_encryption_key,
 )
-from tracehound.schemas import IntegrationCreateRequest, IntegrationList, IntegrationSummary
+from tracehound.schemas import (
+    IntegrationCreateRequest,
+    IntegrationList,
+    IntegrationSummary,
+    IntegrationUpdateRequest,
+)
 
 GRAFANA_CLOUD = {
     "kind": "loki",
@@ -52,6 +57,22 @@ class MemoryIntegrations:
     def list(self, user_id: UUID) -> IntegrationList:
         return IntegrationList(items=[s for uid, s in self.summaries if uid == user_id])
 
+    def update(
+        self, user_id: UUID, integration_id: UUID, request: IntegrationUpdateRequest
+    ) -> IntegrationSummary | None:
+        for i, (uid, summary) in enumerate(self.summaries):
+            if uid == user_id and summary.id == integration_id:
+                config, replaced, secret = IntegrationManagement.merge_update(
+                    summary.config, request
+                )
+                has_secret = (secret is not None) if replaced else summary.has_secret
+                updated = summary.model_copy(
+                    update={"config": config, "has_secret": has_secret, "status": "untested"}
+                )
+                self.summaries[i] = (uid, updated)
+                return updated
+        return None
+
     def delete(self, user_id: UUID, integration_id: UUID) -> bool:
         for i, (uid, summary) in enumerate(self.summaries):
             if uid == user_id and summary.id == integration_id:
@@ -64,6 +85,11 @@ class MemoryIntegrations:
 
 
 class BrokenIntegrations:
+    def update(
+        self, user_id: UUID, integration_id: UUID, request: IntegrationUpdateRequest
+    ) -> IntegrationSummary | None:
+        raise psycopg.OperationalError("connection lost")
+
     def create(self, user_id: UUID, request: IntegrationCreateRequest) -> IntegrationSummary:
         raise psycopg.OperationalError("connection lost")
 
@@ -258,6 +284,114 @@ def test_list_database_error_returns_500() -> None:
     response = client.get("/v1/integrations", headers=_auth())
     assert response.status_code == 500
     assert response.json() == {"detail": "Could not list the integrations."}
+
+
+# PATCH /v1/integrations/{id}
+
+
+def _create(client: TestClient, payload: dict = GRAFANA_CLOUD) -> dict:
+    return client.post("/v1/integrations", json=payload, headers=_auth()).json()
+
+
+def test_update_config_keeps_secret(client: TestClient) -> None:
+    created = _create(client)
+    response = client.patch(
+        f"/v1/integrations/{created['id']}",
+        json={"config": {"url": "https://logs-prod-020.grafana.net/", "org_id": "acme"}},
+        headers=_auth(),
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["config"] == {
+        **created["config"],
+        "url": "https://logs-prod-020.grafana.net",
+        "org_id": "acme",
+    }
+    assert body["has_secret"] is True
+    assert body["id"] == created["id"]
+    assert client.get("/v1/integrations", headers=_auth()).json() == {"items": [body]}
+
+
+def test_update_can_clear_org_id(client: TestClient) -> None:
+    created = _create(client, _with(config={"url": "https://loki.acme.com", "org_id": "acme"}))
+    response = client.patch(
+        f"/v1/integrations/{created['id']}", json={"config": {"org_id": None}}, headers=_auth()
+    )
+    assert response.status_code == 200
+    assert response.json()["config"]["org_id"] is None
+
+
+def test_update_auth_replaces_credential(client: TestClient) -> None:
+    created = _create(client)
+    response = client.patch(
+        f"/v1/integrations/{created['id']}",
+        json={"auth": {"type": "bearer", "token": "eyJ-new"}},
+        headers=_auth(),
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["config"]["auth_type"] == "bearer"
+    assert "username" not in body["config"]
+    assert body["has_secret"] is True
+    assert "eyJ-new" not in response.text
+
+
+def test_update_to_no_auth_drops_secret(client: TestClient) -> None:
+    created = _create(client)
+    response = client.patch(
+        f"/v1/integrations/{created['id']}", json={"auth": {"type": "none"}}, headers=_auth()
+    )
+    assert response.status_code == 200
+    assert response.json()["has_secret"] is False
+    assert response.json()["config"]["auth_type"] == "none"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"config": {}},
+        {"config": {"url": None}},
+        {"config": {"service_label": None}},
+        {"config": {"url": "http://logs.example.com"}},
+        {"config": {"url": "https://10.0.0.5"}},
+        {"config": {"service_label": "bad-label"}},
+        {"config": {"password": "misplaced"}},
+        {"auth": {"type": "basic", "username": "123456"}},
+        {"kind": "loki", "config": {"org_id": "acme"}},
+    ],
+)
+def test_update_rejects_invalid_payload(client: TestClient, payload: dict) -> None:
+    created = _create(client)
+    response = client.patch(f"/v1/integrations/{created['id']}", json=payload, headers=_auth())
+    assert response.status_code == 422
+
+
+def test_cannot_update_other_users_integration(
+    client: TestClient, integrations: MemoryIntegrations
+) -> None:
+    other = uuid4()
+    theirs = integrations.create(other, IntegrationCreateRequest.model_validate(GRAFANA_CLOUD))
+    response = client.patch(
+        f"/v1/integrations/{theirs.id}", json={"config": {"org_id": "x"}}, headers=_auth()
+    )
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Integration not found."}
+    assert integrations.list(other).items == [theirs]
+
+
+def test_update_requires_valid_token(client: TestClient) -> None:
+    response = client.patch(f"/v1/integrations/{uuid4()}", json={"config": {"org_id": "x"}})
+    assert response.status_code == 401
+
+
+def test_update_database_error_returns_500() -> None:
+    client = TestClient(_app_with(BrokenIntegrations()))
+    response = client.patch(
+        f"/v1/integrations/{uuid4()}", json={"config": {"org_id": "x"}}, headers=_auth()
+    )
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Could not update the integration."}
 
 
 # DELETE /v1/integrations/{id}
