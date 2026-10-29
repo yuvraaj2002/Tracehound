@@ -22,3 +22,5 @@ docs/build-in-public/
 
 # Saved pipeline runs
 runs/
+
+.DS_Store
