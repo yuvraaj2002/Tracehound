@@ -7,8 +7,9 @@
 
 Specialists read telemetry through adapters (`LogSource` in `tools/logs/`: `FileLogSource`,
 `LokiLogSource`, with CloudWatch and Elasticsearch stubbed; `MetricSource` in `tools/metrics/`:
-`FileMetricSource`, `PrometheusMetricSource`). In production each customer
-uses their own backend, with their own URL, field names and credentials. A run needs to know
+`FileMetricSource`, `PrometheusMetricSource`; `TraceSource` in `tools/traces/`:
+`FileTraceSource`, `TempoTraceSource`; `DeploySource` in `tools/deploys/`: `FileDeploySource`,
+`GitHubDeploySource`). In production each customer uses their own backend, with their own URL, field names and credentials. A run needs to know
 which backend to call and how to authenticate, without that leaking into the agents.
 
 This is the standard multi-tenant "integrations" pattern: Grafana data sources, Datadog

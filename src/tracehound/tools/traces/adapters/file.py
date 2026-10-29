@@ -1,4 +1,4 @@
-"""Trace tools: spans from a pinned scenario. Never reads ``ground_truth/``."""
+"""File trace source: a pinned scenario's ``traces.json``. Never reads ``ground_truth/``."""
 
 import json
 from datetime import datetime
@@ -7,11 +7,12 @@ from pathlib import Path
 from pydantic import TypeAdapter
 
 from tracehound.schemas.telemetry import Span
+from tracehound.tools.traces.base import TraceSource
 
 _SPANS = TypeAdapter(list[Span])
 
 
-class TraceReader:
+class FileTraceSource(TraceSource):
     """Reads the scenario's ``traces.json`` once and answers queries by service and time."""
 
     def __init__(self, scenario_dir: Path) -> None:

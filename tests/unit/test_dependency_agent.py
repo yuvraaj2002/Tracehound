@@ -8,7 +8,8 @@ from pydantic import BaseModel
 
 from tracehound.agents.dependency import DependencyAgent, DependencyAnswer
 from tracehound.schemas import InvestigationScope, Specialist, SpecialistTask, hash_payload
-from tracehound.tools.traces import TraceReader
+from tracehound.tools.traces import FileTraceSource
+from tracehound.tools.triage import load_topology
 
 SCENARIO = Path(__file__).resolve().parents[2] / "scenarios" / "checkout_db_pool_exhaustion"
 SERVICES = ["checkout-api", "orders-db"]
@@ -52,7 +53,7 @@ def _answer(*span_ids: str) -> DependencyAnswer:
 
 
 def test_fetch_filters_services_and_window_sorted() -> None:
-    reader = TraceReader(SCENARIO)
+    reader = FileTraceSource(SCENARIO)
     spans = reader.fetch({"checkout-api"}, START, END)
 
     assert [s.id for s in spans] == ["trc-001", "trc-002", "trc-004", "trc-005"]
@@ -64,7 +65,7 @@ def test_fetch_filters_services_and_window_sorted() -> None:
 
 def test_context_has_question_edges_and_only_scoped_spans(scope: InvestigationScope) -> None:
     llm = FakeLLM(_answer("trc-005"))
-    DependencyAgent(SCENARIO, llm)(scope, uuid4())
+    DependencyAgent(FileTraceSource(SCENARIO), load_topology(SCENARIO), llm)(scope, uuid4())
 
     user = llm.calls[0]["user"]
     assert user.startswith("<context>\n") and user.endswith("\n</context>")
@@ -76,14 +77,16 @@ def test_context_has_question_edges_and_only_scoped_spans(scope: InvestigationSc
 
 def test_citations_become_evidence(scope: InvestigationScope) -> None:
     run_id = uuid4()
-    report = DependencyAgent(SCENARIO, FakeLLM(_answer("trc-005", "trc-004", "trc-005")))(
-        scope, run_id
-    )
+    report = DependencyAgent(
+        FileTraceSource(SCENARIO),
+        load_topology(SCENARIO),
+        FakeLLM(_answer("trc-005", "trc-004", "trc-005")),
+    )(scope, run_id)
 
     assert report.specialist is Specialist.DEPENDENCY
     assert [e.id for e in report.evidence] == ["trc-005", "trc-004"]
     raw = next(
-        s for s in TraceReader(SCENARIO).fetch(set(SERVICES), START, END) if s.id == "trc-005"
+        s for s in FileTraceSource(SCENARIO).fetch(set(SERVICES), START, END) if s.id == "trc-005"
     )
     evidence = report.evidence[0]
     assert evidence.run_id == run_id
@@ -97,4 +100,6 @@ def test_citations_become_evidence(scope: InvestigationScope) -> None:
 @pytest.mark.parametrize("span_id", ["trc-999", "trc-003"])  # made up / payments-api
 def test_citing_unseen_span_raises(scope: InvestigationScope, span_id: str) -> None:
     with pytest.raises(ValueError, match="not shown"):
-        DependencyAgent(SCENARIO, FakeLLM(_answer("trc-005", span_id)))(scope, uuid4())
+        DependencyAgent(
+            FileTraceSource(SCENARIO), load_topology(SCENARIO), FakeLLM(_answer("trc-005", span_id))
+        )(scope, uuid4())

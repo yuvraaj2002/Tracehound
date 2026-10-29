@@ -1,7 +1,6 @@
 """Dependency agent: reads in-scope spans and edges, turns citations into Evidence."""
 
 from datetime import UTC, datetime
-from pathlib import Path
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -10,10 +9,9 @@ from tracehound.agents.dependency.prompt import SYSTEM_PROMPT
 from tracehound.agents.inference import StructuredLLM
 from tracehound.schemas.evidence import Evidence, EvidenceSource, hash_payload
 from tracehound.schemas.finding import Finding, SpecialistReport
-from tracehound.schemas.telemetry import Edge, Span
+from tracehound.schemas.telemetry import Edge, Span, Topology
 from tracehound.schemas.triage import InvestigationScope, Specialist
-from tracehound.tools.traces import TraceReader
-from tracehound.tools.triage import load_topology
+from tracehound.tools.traces import TraceSource
 
 
 class DependencyContext(BaseModel):
@@ -44,11 +42,14 @@ class DependencyAnswer(BaseModel):
 
 
 class DependencyAgent:
-    """Deterministic trace and topology fetch, then one LLM call. Errors propagate."""
+    """Deterministic fetch from any ``TraceSource`` plus the topology, then one LLM call.
 
-    def __init__(self, scenario_dir: Path, llm: StructuredLLM) -> None:
-        self._reader = TraceReader(scenario_dir)
-        self._topology = load_topology(scenario_dir)
+    Errors propagate.
+    """
+
+    def __init__(self, source: TraceSource, topology: Topology, llm: StructuredLLM) -> None:
+        self._source = source
+        self._topology = topology
         self._llm = llm
 
     def __call__(self, scope: InvestigationScope, run_id: UUID) -> SpecialistReport:
@@ -69,7 +70,7 @@ class DependencyAgent:
             window_start=scope.change_window_start,
             window_end=scope.symptom_window_end,
             edges=self._topology.edges_touching(services),
-            spans=self._reader.fetch(services, scope.change_window_start, scope.symptom_window_end),
+            spans=self._source.fetch(services, scope.change_window_start, scope.symptom_window_end),
         )
 
     @staticmethod

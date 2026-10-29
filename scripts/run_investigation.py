@@ -26,8 +26,11 @@ from tracehound.agents.triage import TriageAgent
 from tracehound.orchestrator.graph import build_graph
 from tracehound.orchestrator.state import SERDE
 from tracehound.schemas import IncidentRecord
+from tracehound.tools.deploys import FileDeploySource
 from tracehound.tools.logs import FileLogSource
 from tracehound.tools.metrics import FileMetricSource
+from tracehound.tools.traces import FileTraceSource
+from tracehound.tools.triage import load_topology
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -94,8 +97,8 @@ def run(scenario: Path, alert: dict, now: datetime, run_dir: Path) -> None:
         {
             "logs": LogsAgent(FileLogSource(scenario), llm),
             "metrics": MetricsAgent(FileMetricSource(scenario), llm),
-            "deploy": DeployAgent(scenario, llm),
-            "dependency": DependencyAgent(scenario, llm),
+            "deploy": DeployAgent(FileDeploySource(scenario), llm),
+            "dependency": DependencyAgent(FileTraceSource(scenario), load_topology(scenario), llm),
         },
         HypothesisAgent(llm),
         checkpointer=InMemorySaver(serde=SERDE),

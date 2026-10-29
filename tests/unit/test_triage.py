@@ -22,8 +22,10 @@ from tracehound.schemas import (
     InvestigationScope,
     Specialist,
 )
+from tracehound.tools.deploys import FileDeploySource
 from tracehound.tools.logs import FileLogSource
 from tracehound.tools.metrics import FileMetricSource
+from tracehound.tools.traces import FileTraceSource
 from tracehound.tools.triage import load_deploys, load_topology
 
 SCENARIO = Path(__file__).resolve().parents[2] / "scenarios" / "checkout_db_pool_exhaustion"
@@ -214,8 +216,10 @@ def _graph(incident: IncidentRecord, decision: TriageDecision) -> Any:
         {
             "logs": LogsAgent(FileLogSource(SCENARIO), FakeLLM(logs)),
             "metrics": MetricsAgent(FileMetricSource(SCENARIO), FakeLLM(metrics)),
-            "deploy": DeployAgent(SCENARIO, FakeLLM(deploy)),
-            "dependency": DependencyAgent(SCENARIO, FakeLLM(dependency)),
+            "deploy": DeployAgent(FileDeploySource(SCENARIO), FakeLLM(deploy)),
+            "dependency": DependencyAgent(
+                FileTraceSource(SCENARIO), load_topology(SCENARIO), FakeLLM(dependency)
+            ),
         },
         HypothesisAgent(FakeLLM(hypotheses)),
         checkpointer=InMemorySaver(serde=SERDE),

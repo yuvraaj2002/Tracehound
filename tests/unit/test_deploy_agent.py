@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from tracehound.agents.deploy import DeployAgent, DeployAnswer
 from tracehound.schemas import InvestigationScope, Specialist, SpecialistTask, hash_payload
-from tracehound.tools.deploys import DeployReader
+from tracehound.tools.deploys import FileDeploySource
 
 SCENARIO = Path(__file__).resolve().parents[2] / "scenarios" / "checkout_db_pool_exhaustion"
 SERVICES = ["checkout-api", "orders-db"]
@@ -54,17 +54,19 @@ def _answer(*deploy_ids: str) -> DeployAnswer:
 
 
 def test_fetch_filters_services_and_window_sorted() -> None:
-    both = DeployReader(SCENARIO).fetch({"checkout-api", "payments-api"}, START, END)
+    both = FileDeploySource(SCENARIO).fetch({"checkout-api", "payments-api"}, START, END)
     assert [d.id for d in both] == ["dep-001", "dep-002"]
-    assert [d.id for d in DeployReader(SCENARIO).fetch({"checkout-api"}, START, END)] == ["dep-002"]
-    assert DeployReader(SCENARIO).fetch({"checkout-api"}, START, START) == []
+    assert [d.id for d in FileDeploySource(SCENARIO).fetch({"checkout-api"}, START, END)] == [
+        "dep-002"
+    ]
+    assert FileDeploySource(SCENARIO).fetch({"checkout-api"}, START, START) == []
 
 
 def test_context_has_deploy_question_and_only_scoped_services(
     scope: InvestigationScope,
 ) -> None:
     llm = FakeLLM(_answer("dep-002"))
-    DeployAgent(SCENARIO, llm)(scope, uuid4())
+    DeployAgent(FileDeploySource(SCENARIO), llm)(scope, uuid4())
 
     user = llm.calls[0]["user"]
     assert user.startswith("<context>\n") and user.endswith("\n</context>")
@@ -74,11 +76,13 @@ def test_context_has_deploy_question_and_only_scoped_services(
 
 def test_citations_become_evidence(scope: InvestigationScope) -> None:
     run_id = uuid4()
-    report = DeployAgent(SCENARIO, FakeLLM(_answer("dep-002", "dep-002")))(scope, run_id)
+    report = DeployAgent(FileDeploySource(SCENARIO), FakeLLM(_answer("dep-002", "dep-002")))(
+        scope, run_id
+    )
 
     assert report.specialist is Specialist.DEPLOY
     assert [e.id for e in report.evidence] == ["dep-002"]
-    raw = DeployReader(SCENARIO).fetch({"checkout-api"}, START, END)[0]
+    raw = FileDeploySource(SCENARIO).fetch({"checkout-api"}, START, END)[0]
     evidence = report.evidence[0]
     assert evidence.run_id == run_id
     assert evidence.event_time == raw.deployed_at
@@ -91,4 +95,6 @@ def test_citations_become_evidence(scope: InvestigationScope) -> None:
 @pytest.mark.parametrize("deploy_id", ["dep-999", "dep-001"])  # made up / payments-api
 def test_citing_unseen_deploy_raises(scope: InvestigationScope, deploy_id: str) -> None:
     with pytest.raises(ValueError, match="not shown"):
-        DeployAgent(SCENARIO, FakeLLM(_answer("dep-002", deploy_id)))(scope, uuid4())
+        DeployAgent(FileDeploySource(SCENARIO), FakeLLM(_answer("dep-002", deploy_id)))(
+            scope, uuid4()
+        )
