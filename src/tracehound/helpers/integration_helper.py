@@ -115,3 +115,16 @@ class IntegrationManagement:
                 (user_id,),
             ).fetchall()
         return IntegrationList(items=[IntegrationSummary(**row) for row in rows])
+
+    def delete(self, user_id: UUID, integration_id: UUID) -> bool:
+        """Permanently delete `integration_id` and its encrypted credential.
+
+        A hard delete, so the user can connect the same kind again. Returns False when the
+        integration isn't the user's.
+        """
+        with self._pool.connection() as conn:
+            row = conn.execute(
+                "DELETE FROM integrations WHERE id = %s AND user_id = %s RETURNING id",
+                (integration_id, user_id),
+            ).fetchone()
+        return row is not None

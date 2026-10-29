@@ -70,6 +70,9 @@ Losing this key makes every stored credential unreadable. Backend URLs must be h
 point at private addresses; set `ALLOW_INSECURE_INTEGRATION_URLS=1` locally to allow
 `http://localhost:3100` and similar.
 
+`DELETE /v1/integrations/{id}` removes an integration and its stored credential for good, so the
+user can connect that backend again.
+
 ### Authentication (UI)
 
 The UI in `ui/` signs users in with Google or GitHub through Supabase Auth (PKCE flow) and sends

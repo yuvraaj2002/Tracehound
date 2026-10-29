@@ -62,3 +62,13 @@ def test_lists_stored_integrations(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.json() == {"items": [created]}
     assert "glc_secret" not in response.text
+
+
+def test_delete_removes_row_and_frees_kind(client: TestClient, pool: ConnectionPool) -> None:
+    created = client.post("/v1/integrations", json=GRAFANA_CLOUD).json()
+    assert client.delete(f"/v1/integrations/{created['id']}").status_code == 204
+    with pool.connection() as conn:
+        row = conn.execute("SELECT 1 FROM integrations WHERE id = %s", (created["id"],)).fetchone()
+    assert row is None
+    assert client.delete(f"/v1/integrations/{created['id']}").status_code == 404
+    assert client.post("/v1/integrations", json=GRAFANA_CLOUD).status_code == 201

@@ -52,12 +52,25 @@ class MemoryIntegrations:
     def list(self, user_id: UUID) -> IntegrationList:
         return IntegrationList(items=[s for uid, s in self.summaries if uid == user_id])
 
+    def delete(self, user_id: UUID, integration_id: UUID) -> bool:
+        for i, (uid, summary) in enumerate(self.summaries):
+            if uid == user_id and summary.id == integration_id:
+                del self.summaries[i]
+                self.created = [
+                    (u, r) for u, r in self.created if (u, r.kind) != (uid, summary.kind)
+                ]
+                return True
+        return False
+
 
 class BrokenIntegrations:
     def create(self, user_id: UUID, request: IntegrationCreateRequest) -> IntegrationSummary:
         raise psycopg.OperationalError("connection lost")
 
     def list(self, user_id: UUID) -> IntegrationList:
+        raise psycopg.OperationalError("connection lost")
+
+    def delete(self, user_id: UUID, integration_id: UUID) -> bool:
         raise psycopg.OperationalError("connection lost")
 
 
@@ -245,3 +258,47 @@ def test_list_database_error_returns_500() -> None:
     response = client.get("/v1/integrations", headers=_auth())
     assert response.status_code == 500
     assert response.json() == {"detail": "Could not list the integrations."}
+
+
+# DELETE /v1/integrations/{id}
+
+
+def test_deletes_integration(client: TestClient) -> None:
+    created = client.post("/v1/integrations", json=GRAFANA_CLOUD, headers=_auth()).json()
+    response = client.delete(f"/v1/integrations/{created['id']}", headers=_auth())
+    assert response.status_code == 204
+    assert response.content == b""
+    assert client.get("/v1/integrations", headers=_auth()).json() == {"items": []}
+    # The kind is free again.
+    assert client.post("/v1/integrations", json=GRAFANA_CLOUD, headers=_auth()).status_code == 201
+
+
+def test_cannot_delete_other_users_integration(
+    client: TestClient, integrations: MemoryIntegrations
+) -> None:
+    other = uuid4()
+    theirs = integrations.create(other, IntegrationCreateRequest.model_validate(GRAFANA_CLOUD))
+    response = client.delete(f"/v1/integrations/{theirs.id}", headers=_auth())
+    assert response.status_code == 404
+    assert integrations.list(other).items == [theirs]
+
+
+def test_delete_unknown_integration_returns_404(client: TestClient) -> None:
+    response = client.delete(f"/v1/integrations/{uuid4()}", headers=_auth())
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Integration not found."}
+
+
+def test_delete_rejects_malformed_id(client: TestClient) -> None:
+    assert client.delete("/v1/integrations/not-a-uuid", headers=_auth()).status_code == 422
+
+
+def test_delete_requires_valid_token(client: TestClient) -> None:
+    assert client.delete(f"/v1/integrations/{uuid4()}").status_code == 401
+
+
+def test_delete_database_error_returns_500() -> None:
+    client = TestClient(_app_with(BrokenIntegrations()))
+    response = client.delete(f"/v1/integrations/{uuid4()}", headers=_auth())
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Could not delete the integration."}
