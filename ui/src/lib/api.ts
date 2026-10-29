@@ -28,6 +28,21 @@ export type IncidentCreate = {
 
 export type IncidentAccepted = { incident_id: string, run_id: string, status_url: string }
 
+export type ApiKeySummary = {
+  id: string
+  name: string
+  prefix: string
+  suffix: string
+  created_at: string
+  last_used_at: string | null
+}
+
+/** Pass `next_cursor` back as `cursor` for the next page; null on the last page. */
+export type ApiKeyPage = { items: ApiKeySummary[], next_cursor: string | null }
+
+/** `key` is the raw secret. The API returns it once, here, and never again. */
+export type ApiKeyCreated = Omit<ApiKeySummary, 'last_used_at'> & { key: string }
+
 export class ApiError extends Error {
   readonly status: number
   constructor(status: number, message: string) {
@@ -48,7 +63,15 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   if (init.body !== undefined) headers.set('Content-Type', 'application/json')
   if (data.session) headers.set('Authorization', `Bearer ${data.session.access_token}`)
 
-  const response = await fetch(`${base}${path}`, { ...init, headers })
+  let response: Response
+  try {
+    response = await fetch(`${base}${path}`, { ...init, headers })
+  } catch (err) {
+    // fetch rejects with a TypeError when the request never reaches the server
+    // ("Failed to fetch" / "Load failed"): API down, wrong URL or CORS.
+    if (err instanceof TypeError) throw new ApiError(0, 'Can’t reach the Tracehound API. Check that the backend is running.')
+    throw err
+  }
   if (response.status === 401) {
     // The API rejected the token. Clearing the local session fires SIGNED_OUT,
     // and RequireAuth sends the user to /signin, remembering where they were.
@@ -56,6 +79,8 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     throw new ApiError(401, 'Your session has expired. Please sign in again.')
   }
   if (!response.ok) throw new ApiError(response.status, await errorMessage(response))
+  // 204 No Content (e.g. a revoke) has no body to parse.
+  if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
 }
 
@@ -72,3 +97,9 @@ async function errorMessage(response: Response) {
 export const listIncidents = () => apiFetch<Incident[]>('/v1/incidents')
 
 export const createIncident = (incident: IncidentCreate) => apiFetch<IncidentAccepted>('/v1/incidents', { method: 'POST', body: JSON.stringify(incident) })
+
+export const listApiKeys = (cursor?: string | null) => apiFetch<ApiKeyPage>(`/v1/api-keys${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`)
+
+export const createApiKey = (name: string) => apiFetch<ApiKeyCreated>('/v1/api-keys', { method: 'POST', body: JSON.stringify({ name }) })
+
+export const revokeApiKey = (id: string) => apiFetch<void>(`/v1/api-keys/${encodeURIComponent(id)}`, { method: 'DELETE' })

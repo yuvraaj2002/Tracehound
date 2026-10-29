@@ -53,7 +53,7 @@ def create_app(pool_factory: Callable[[], ConnectionPool] = _default_pool) -> Fa
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins(),
-        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type"],
     )
     app.include_router(incidents_router)
