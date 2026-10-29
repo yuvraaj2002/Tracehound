@@ -104,6 +104,9 @@ Keep agents-hero-hd.png, the six role-named portraits, tracehound-mark.svg,
 and the matching favicon.
 Removed the unused low-resolution agents-hero.png and starter icons.svg sprite.
 Portraits retain their source pixels; CSS applies the shared saturation grade.
+public/agents/faces/ holds 192px head crops (about 10 KB each) of the Logs, Metrics,
+Dependency and Deploy portraits, used as circular avatars on the Integrations page.
+Planned sources show their agent in grayscale.
 Their baked studio shadows are part of the artwork, not section backgrounds.
 
 Use the high-resolution group image at its natural aspect ratio. Do not use

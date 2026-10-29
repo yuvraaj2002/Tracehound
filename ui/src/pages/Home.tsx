@@ -5,8 +5,10 @@ import SignedInHeader from '../SignedInHeader'
 import '../auth.css'
 
 const cards = [
-  { to: '/app/incidents', eyebrow: 'Case board', title: 'Start an investigation', description: 'Describe the symptom and the window. Marshal and the specialists follow the evidence from there.', action: 'Open a case', color: 'var(--color-primary)' },
+  { to: '/app/docs', eyebrow: 'Developers', title: 'API reference', description: 'Trigger an investigation from your alerting tool with one POST request. Copy-ready examples in cURL, Python and JavaScript.', action: 'Read the docs', color: 'var(--color-primary)' },
+  { to: '/app/integrations', eyebrow: 'Data sources', title: 'Integrations', description: 'Connect the Loki your services already log to, so the specialists investigate with your real telemetry.', action: 'Manage integrations', color: 'var(--agent-logs)' },
   { to: '/app/api-keys', eyebrow: 'Access', title: 'API keys', description: 'Create keys for scripts and alerting tools that open cases on your behalf, and revoke the ones you no longer use.', action: 'Manage keys', color: 'var(--color-secondary)' },
+  { to: '/app/incidents', eyebrow: 'Runs', title: 'Dashboard', description: 'Every investigation your tools have opened, with its service, severity, window and current state.', action: 'Open the dashboard', color: 'var(--color-tertiary)' },
 ]
 
 /** Where a signed-in user lands: one card per area of the product. */
@@ -22,7 +24,7 @@ export default function Home() {
       <main className="workspace">
         <div className="workspace-heading">
           <div><p className="eyebrow"><span /> Home</p><h1>{firstName ? `Welcome, ${firstName}.` : 'Welcome.'}<br /><span>Where should we start?</span></h1></div>
-          <p>Open a case, or set up access for your tools.</p>
+          <p>Read the API, connect your telemetry, create a key, then watch the runs arrive.</p>
         </div>
 
         <ul className="home-cards">

@@ -1,0 +1,292 @@
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type RefObject } from 'react'
+import { Link } from 'react-router'
+import { ApiError, createIntegration, deleteIntegration, listIntegrations, type IntegrationAuth, type IntegrationKind, type IntegrationStatus, type IntegrationSummary } from '../lib/api'
+import Dialog from '../Dialog'
+import SignedInHeader from '../SignedInHeader'
+import '../auth.css'
+
+const formatDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+const message = (err: unknown, fallback: string) => err instanceof Error ? err.message : fallback
+
+/** One slot per specialist data source. Only Loki is connectable today; the rest say so plainly. */
+type Source = { signal: string, agent: string, name: string, face: string, product: string, description: string, color: string, kind: IntegrationKind | null }
+const sources: Source[] = [
+  { signal: 'Logs', name: 'Echo', face: '/agents/faces/logs.jpg', agent: 'Logs agent', product: 'Grafana Loki', description: 'Reads error bursts, stack traces and new messages from your services during the incident window.', color: 'var(--agent-logs)', kind: 'loki' },
+  { signal: 'Metrics', name: 'Pulse', face: '/agents/faces/metrics.jpg', agent: 'Metrics agent', product: 'Prometheus', description: 'Compares latency, error rate and saturation against the baseline before the incident.', color: 'var(--agent-metrics)', kind: null },
+  { signal: 'Traces', name: 'Tether', face: '/agents/faces/dependency.jpg', agent: 'Dependency agent', product: 'Grafana Tempo', description: 'Follows slow and failing spans across service boundaries to find where trouble starts.', color: 'var(--agent-dependency)', kind: null },
+  { signal: 'Deploys', name: 'Ledger', face: '/agents/faces/deploy.jpg', agent: 'Deploy agent', product: 'GitHub', description: 'Lines up releases and configuration changes with the moment the incident began.', color: 'var(--agent-deploy)', kind: null },
+]
+
+const statusLabel: Record<IntegrationStatus, string> = { untested: 'Not tested yet', active: 'Connected', failing: 'Failing' }
+const authLabel = (config: IntegrationSummary['config']) => config.auth_type === 'basic' ? `Basic · ${config.username}` : config.auth_type === 'bearer' ? 'Bearer token' : 'None'
+
+type Load = { status: 'loading' } | { status: 'ready', items: IntegrationSummary[] } | { status: 'error', message: string }
+
+const fetchAll = (): Promise<Load> => listIntegrations().then(
+  (page) => ({ status: 'ready', items: page.items }),
+  (err: unknown) => ({ status: 'error', message: message(err, 'Could not load integrations.') }),
+)
+
+export default function Integrations() {
+  const [load, setLoad] = useState<Load>({ status: 'loading' })
+  const [connecting, setConnecting] = useState<Source | null>(null)
+  const [disconnecting, setDisconnecting] = useState<{ source: Source, integration: IntegrationSummary } | null>(null)
+  const [highlight, setHighlight] = useState<string | null>(null)
+  const [status, setStatus] = useState<string | null>(null)
+  const heading = useRef<HTMLHeadingElement>(null)
+
+  useEffect(() => {
+    let active = true
+    fetchAll().then((next) => { if (active) setLoad(next) })
+    return () => { active = false }
+  }, [])
+
+  // The status message and the new-row highlight both fade on their own.
+  useEffect(() => {
+    if (!status) return
+    const timer = setTimeout(() => setStatus(null), 4000)
+    return () => clearTimeout(timer)
+  }, [status])
+  useEffect(() => {
+    if (!highlight) return
+    const timer = setTimeout(() => setHighlight(null), 2400)
+    return () => clearTimeout(timer)
+  }, [highlight])
+
+  const retry = () => { setLoad({ status: 'loading' }); void fetchAll().then(setLoad) }
+
+  const onCreated = (source: Source, integration: IntegrationSummary) => {
+    setLoad((current) => current.status === 'ready' ? { status: 'ready', items: [...current.items.filter((item) => item.kind !== integration.kind), integration] } : current)
+    setConnecting(null)
+    setHighlight(integration.id)
+    setStatus(`${source.product} connected`)
+  }
+
+  const onDeleted = (source: Source, integration: IntegrationSummary) => {
+    setLoad((current) => current.status === 'ready' ? { status: 'ready', items: current.items.filter((item) => item.id !== integration.id) } : current)
+    setDisconnecting(null)
+    setStatus(`${source.product} disconnected`)
+  }
+
+  const connected = load.status === 'ready' ? load.items.length : 0
+
+  return (
+    <>
+      <div className="auth-page" inert={connecting !== null || disconnecting !== null}>
+        <SignedInHeader />
+
+        <main className="workspace">
+          <Link className="back-link" to="/app"><span aria-hidden="true">←</span> Home</Link>
+          <div className="workspace-heading">
+            <div><p className="eyebrow"><span /> Data sources</p><h1 ref={heading} tabIndex={-1}>Integrations</h1><p className="heading-note">Connect the backends your services already report to. Each specialist reads its evidence from here, with read-only access.</p></div>
+            {load.status === 'ready' && <p className="source-count"><strong>{connected}</strong> of {sources.length} connected</p>}
+          </div>
+
+          <section className="source-list" aria-labelledby="source-list-title" aria-busy={load.status === 'loading'}>
+            <h2 id="source-list-title" className="sr-only">Data sources</h2>
+            {load.status === 'error' && <div className="notice" role="status">
+              <div><p className="notice-title">Couldn’t load your integrations</p><p>{load.message}</p></div>
+              <button type="button" className="button-quiet" onClick={retry}>Retry</button>
+            </div>}
+            {load.status === 'loading' && <p className="sr-only" role="status">Loading integrations</p>}
+            <ul>
+              {sources.map((source) => {
+                const integration = load.status === 'ready' ? load.items.find((item) => item.kind === source.kind) : undefined
+                return <SourceRow key={source.signal} source={source} integration={integration} loading={load.status === 'loading'} unavailable={load.status === 'error'} isNew={integration?.id === highlight} onConnect={() => setConnecting(source)} onDisconnect={(item) => setDisconnecting({ source, integration: item })} />
+              })}
+            </ul>
+          </section>
+        </main>
+      </div>
+
+      <div className="toast-region" role="status" aria-live="polite">{status && <p className="toast">{status}</p>}</div>
+
+      {disconnecting && <DisconnectDialog source={disconnecting.source} integration={disconnecting.integration} fallbackFocus={heading} onDeleted={() => onDeleted(disconnecting.source, disconnecting.integration)} onClose={() => setDisconnecting(null)} />}
+      {connecting && <ConnectLokiDialog source={connecting} fallbackFocus={heading} onCreated={(integration) => onCreated(connecting, integration)} onClose={() => setConnecting(null)} />}
+    </>
+  )
+}
+
+/** The agent who reads this source. Decorative: the eyebrow already names the agent. */
+function AgentFace({ source }: { source: Source }) {
+  return <span className="agent-face" aria-hidden="true"><img src={source.face} alt="" width="96" height="96" loading="lazy" decoding="async" /></span>
+}
+
+function SourceRow({ source, integration, loading, unavailable, isNew, onConnect, onDisconnect }: { source: Source, integration?: IntegrationSummary, loading: boolean, unavailable: boolean, isNew: boolean, onConnect: () => void, onDisconnect: (integration: IntegrationSummary) => void }) {
+  const titleId = `source-${source.signal.toLowerCase()}`
+  const action = () => {
+    if (!source.kind) return <span className="source-soon">Coming soon</span>
+    if (loading) return <span className="skeleton source-skeleton" aria-hidden="true" />
+    if (integration) return <>
+      <span className={`source-status is-${integration.status}`}><span aria-hidden="true" />{statusLabel[integration.status]}</span>
+      <button type="button" className="button-quiet button-danger" onClick={() => onDisconnect(integration)} aria-label={`Disconnect ${source.product}`}>Disconnect</button>
+    </>
+    return <button type="button" className="button-primary" onClick={onConnect} disabled={unavailable} aria-describedby={titleId}>Connect <span aria-hidden="true">+</span></button>
+  }
+
+  return (
+    <li className={['source', source.kind ? null : 'is-planned', isNew ? 'is-new' : null].filter(Boolean).join(' ')} style={{ '--source-color': source.color } as CSSProperties} aria-labelledby={titleId}>
+      <div className="source-head">
+        <AgentFace source={source} />
+        <div className="source-identity">
+          <p className="eyebrow"><span /> {source.signal} · {source.name}, {source.agent}</p>
+          <h3 id={titleId}>{source.product}</h3>
+          <p className="source-description">{source.description}</p>
+        </div>
+        <div className="source-action">{action()}</div>
+      </div>
+      {integration && <dl className="source-details">
+        <div className="source-detail-wide"><dt>Endpoint</dt><dd><code title={integration.config.url}>{integration.config.url}</code></dd></div>
+        <div><dt>Authentication</dt><dd>{authLabel(integration.config)}{integration.has_secret && <span className="source-secret"><svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.4" /><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" fill="none" stroke="currentColor" strokeWidth="1.4" /></svg>Encrypted</span>}</dd></div>
+        <div><dt>Service label</dt><dd><code>{integration.config.service_label}</code></dd></div>
+        <div><dt>Tenant</dt><dd>{integration.config.org_id ? <code>{integration.config.org_id}</code> : 'Default'}</dd></div>
+        <div><dt>Connected</dt><dd>{formatDate(integration.created_at)}</dd></div>
+      </dl>}
+    </li>
+  )
+}
+
+function DisconnectDialog({ source, integration, fallbackFocus, onDeleted, onClose }: { source: Source, integration: IntegrationSummary, fallbackFocus: RefObject<HTMLElement | null>, onDeleted: () => void, onClose: () => void }) {
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const disconnect = async () => {
+    setPending(true)
+    setError(null)
+    try {
+      await deleteIntegration(integration.id)
+      onDeleted()
+    } catch (err) {
+      // Already gone on the server: the outcome the user asked for.
+      if (err instanceof ApiError && err.status === 404) onDeleted()
+      else { setError(message(err, 'Could not disconnect the integration.')); setPending(false) }
+    }
+  }
+
+  return (
+    <Dialog labelledBy="disconnect-dialog-title" describedBy="disconnect-dialog-body" onDismiss={pending ? null : onClose} fallbackFocus={fallbackFocus}>
+      <h2 id="disconnect-dialog-title">Disconnect {source.product}?</h2>
+      <div id="disconnect-dialog-body">
+        <p className="dialog-key"><code>{integration.config.url}</code></p>
+        <p>{source.name}, the {source.agent.toLowerCase()}, will stop reading evidence from this backend. The URL and the stored {integration.has_secret ? 'token are' : 'settings are'} deleted for good; to use it again, connect it from scratch.</p>
+      </div>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      <div className="dialog-actions">
+        <button type="button" className="button-quiet" onClick={onClose} disabled={pending} autoFocus>Cancel</button>
+        <button type="button" className="button-primary button-danger-solid" onClick={() => void disconnect()} disabled={pending}>{pending ? 'Disconnecting…' : 'Disconnect'}</button>
+      </div>
+    </Dialog>
+  )
+}
+
+type AuthType = IntegrationAuth['type']
+const authOptions: { value: AuthType, label: string, hint: string }[] = [
+  { value: 'basic', label: 'Basic', hint: 'Grafana Cloud: your Loki user ID and an access policy token with logs:read.' },
+  { value: 'bearer', label: 'Bearer token', hint: 'For Loki behind a proxy or gateway that expects an Authorization: Bearer header.' },
+  { value: 'none', label: 'None', hint: 'Only for Loki on a private network that needs no credentials.' },
+]
+
+function ConnectLokiDialog({ source, fallbackFocus, onCreated, onClose }: { source: Source, fallbackFocus: RefObject<HTMLElement | null>, onCreated: (integration: IntegrationSummary) => void, onClose: () => void }) {
+  const [url, setUrl] = useState('')
+  const [authType, setAuthType] = useState<AuthType>('basic')
+  const [username, setUsername] = useState('')
+  // The credential lives only in this state and is sent once, over the API, to be encrypted.
+  const [secret, setSecret] = useState('')
+  const [showSecret, setShowSecret] = useState(false)
+  const [serviceLabel, setServiceLabel] = useState('service_name')
+  const [orgId, setOrgId] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const trimmedUrl = url.trim()
+  const urlProblem = trimmedUrl && !/^https?:\/\/[^\s/?#]+/i.test(trimmedUrl) ? 'Enter a full URL, starting with https://' : null
+  const labelProblem = serviceLabel.trim() && !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(serviceLabel.trim()) ? 'Letters, digits and underscores; it can’t start with a digit.' : null
+  const complete = Boolean(trimmedUrl) && !urlProblem && !labelProblem && (authType === 'none' || (authType === 'bearer' ? secret : username.trim() && secret))
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!complete || submitting) return
+    setSubmitting(true)
+    setError(null)
+    const auth: IntegrationAuth = authType === 'basic' ? { type: 'basic', username: username.trim(), password: secret } : authType === 'bearer' ? { type: 'bearer', token: secret } : { type: 'none' }
+    try {
+      onCreated(await createIntegration({ kind: 'loki', config: { url: trimmedUrl, service_label: serviceLabel.trim() || 'service_name', org_id: orgId.trim() || null }, auth }))
+    } catch (err) {
+      setError(err instanceof ApiError && err.status === 409 ? 'You already have a Loki connection. Reload the page to see it.' : message(err, 'Could not save the connection.'))
+      setSubmitting(false)
+    }
+  }
+
+  const option = authOptions.find((item) => item.value === authType)!
+
+  return (
+    <Dialog labelledBy="connect-dialog-title" describedBy="connect-dialog-intro" onDismiss={submitting ? null : onClose} fallbackFocus={fallbackFocus} wide>
+      <form className="dialog-form connect-form" onSubmit={submit} noValidate style={{ '--source-color': source.color } as CSSProperties}>
+        <div className="connect-header">
+          <AgentFace source={source} />
+          <p className="eyebrow"><span /> {source.signal} · {source.name}, {source.agent}</p>
+          <h2 id="connect-dialog-title">Connect {source.product}</h2>
+          <p id="connect-dialog-intro">Tracehound runs read-only LogQL queries against this Loki when it investigates an incident.</p>
+        </div>
+
+        <div className="connect-field">
+          <label htmlFor="loki-url">Loki URL</label>
+          <input id="loki-url" type="url" inputMode="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://logs-prod-012.grafana.net" autoComplete="off" spellCheck={false} aria-describedby="loki-url-hint" aria-invalid={urlProblem ? true : undefined} autoFocus />
+          <p id="loki-url-hint" className={urlProblem ? 'field-hint is-error' : 'field-hint'}>{urlProblem ?? 'The base URL, without /loki/api/v1. In Grafana Cloud it’s on your stack’s Loki details page.'}</p>
+        </div>
+
+        <fieldset className="connect-field">
+          <legend>Authentication</legend>
+          <div className="segmented" role="radiogroup" aria-describedby="auth-hint">
+            {authOptions.map((item) => <label key={item.value} className={item.value === authType ? 'is-selected' : undefined}>
+              <input type="radio" name="auth-type" value={item.value} checked={item.value === authType} onChange={() => { setAuthType(item.value); setSecret(''); setShowSecret(false) }} />
+              {item.label}
+            </label>)}
+          </div>
+          <p id="auth-hint" className="field-hint">{option.hint}</p>
+        </fieldset>
+
+        {authType !== 'none' && <div className={authType === 'basic' ? 'connect-row' : undefined}>
+          {authType === 'basic' && <div className="connect-field">
+            <label htmlFor="loki-username">User ID</label>
+            <input id="loki-username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="123456" autoComplete="off" spellCheck={false} />
+          </div>}
+          <div className="connect-field">
+            <label htmlFor="loki-secret">{authType === 'basic' ? 'Token or password' : 'Token'}</label>
+            <div className="secret-input">
+              <input id="loki-secret" type={showSecret ? 'text' : 'password'} value={secret} onChange={(event) => setSecret(event.target.value)} placeholder={authType === 'basic' ? 'glc_…' : 'eyJ…'} autoComplete="new-password" spellCheck={false} />
+              <button type="button" onClick={() => setShowSecret((value) => !value)} aria-pressed={showSecret} aria-label={showSecret ? 'Hide token' : 'Show token'}>{showSecret ? 'Hide' : 'Show'}</button>
+            </div>
+          </div>
+        </div>}
+
+        <details className="connect-advanced">
+          <summary>Advanced settings</summary>
+          <div className="connect-row">
+            <div className="connect-field">
+              <label htmlFor="loki-label">Service label</label>
+              <input id="loki-label" value={serviceLabel} onChange={(event) => setServiceLabel(event.target.value)} autoComplete="off" spellCheck={false} aria-describedby="loki-label-hint" aria-invalid={labelProblem ? true : undefined} />
+              <p id="loki-label-hint" className={labelProblem ? 'field-hint is-error' : 'field-hint'}>{labelProblem ?? 'The stream label that names each service.'}</p>
+            </div>
+            <div className="connect-field">
+              <label htmlFor="loki-org">Tenant ID <span className="optional">optional</span></label>
+              <input id="loki-org" value={orgId} onChange={(event) => setOrgId(event.target.value)} placeholder="acme-prod" autoComplete="off" spellCheck={false} aria-describedby="loki-org-hint" />
+              <p id="loki-org-hint" className="field-hint">Sent as X-Scope-OrgID to multi-tenant Loki.</p>
+            </div>
+          </div>
+        </details>
+
+        {authType !== 'none' && <div className="connect-callout">
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.4" /><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" fill="none" stroke="currentColor" strokeWidth="1.4" /></svg>
+          <p>Your token is encrypted before it’s stored and is never shown again. Use a read-only token, so Tracehound can query logs but never change them.</p>
+        </div>}
+
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <div className="dialog-actions">
+          <button type="button" className="button-quiet" onClick={onClose} disabled={submitting}>Cancel</button>
+          <button type="submit" className="button-primary" disabled={!complete || submitting}>{submitting ? 'Saving…' : 'Save connection'}</button>
+        </div>
+      </form>
+    </Dialog>
+  )
+}

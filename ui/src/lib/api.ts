@@ -43,6 +43,29 @@ export type ApiKeyPage = { items: ApiKeySummary[], next_cursor: string | null }
 /** `key` is the raw secret. The API returns it once, here, and never again. */
 export type ApiKeyCreated = Omit<ApiKeySummary, 'last_used_at'> & { key: string }
 
+export type IntegrationKind = 'loki'
+export type IntegrationStatus = 'untested' | 'active' | 'failing'
+export type IntegrationAuth =
+  | { type: 'none' }
+  | { type: 'basic', username: string, password: string }
+  | { type: 'bearer', token: string }
+
+/** Non-secret Loki settings. `org_id` is sent as X-Scope-OrgID to multi-tenant Loki. */
+export type LokiConfig = { url: string, service_label?: string, org_id?: string | null }
+
+export type IntegrationCreate = { kind: IntegrationKind, config: LokiConfig, auth: IntegrationAuth }
+
+/** The credential is never returned; `has_secret` says whether one is stored. */
+export type IntegrationSummary = {
+  id: string
+  kind: IntegrationKind
+  config: Required<LokiConfig> & { auth_type: IntegrationAuth['type'], username?: string }
+  has_secret: boolean
+  status: IntegrationStatus
+  last_tested_at: string | null
+  created_at: string
+}
+
 export class ApiError extends Error {
   readonly status: number
   constructor(status: number, message: string) {
@@ -89,7 +112,7 @@ async function errorMessage(response: Response) {
     const body = await response.json() as { detail?: unknown }
     if (typeof body.detail === 'string') return body.detail
     // FastAPI validation errors: [{ loc, msg }, ...]
-    if (Array.isArray(body.detail)) return body.detail.map((item: { loc?: unknown[], msg?: string }) => `${item.loc?.at(-1) ?? 'request'}: ${item.msg}`).join('; ')
+    if (Array.isArray(body.detail)) return body.detail.map((item: { loc?: unknown[], msg?: string }) => `${item.loc?.at(-1) ?? 'request'}: ${item.msg?.replace(/^Value error, /, '')}`).join('; ')
   } catch { /* not JSON */ }
   return `Request failed (${response.status})`
 }
@@ -103,3 +126,9 @@ export const listApiKeys = (cursor?: string | null) => apiFetch<ApiKeyPage>(`/v1
 export const createApiKey = (name: string) => apiFetch<ApiKeyCreated>('/v1/api-keys', { method: 'POST', body: JSON.stringify({ name }) })
 
 export const revokeApiKey = (id: string) => apiFetch<void>(`/v1/api-keys/${encodeURIComponent(id)}`, { method: 'DELETE' })
+
+export const listIntegrations = () => apiFetch<{ items: IntegrationSummary[] }>('/v1/integrations')
+
+export const createIntegration = (integration: IntegrationCreate) => apiFetch<IntegrationSummary>('/v1/integrations', { method: 'POST', body: JSON.stringify(integration) })
+
+export const deleteIntegration = (id: string) => apiFetch<void>(`/v1/integrations/${encodeURIComponent(id)}`, { method: 'DELETE' })
