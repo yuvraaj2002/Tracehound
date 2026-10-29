@@ -9,6 +9,7 @@ from psycopg_pool import ConnectionPool
 from tracehound.auth import InvalidToken, TokenVerifier, User
 from tracehound.helpers.api_key_helper import ApiKeyManagement
 from tracehound.helpers.incident_helper import IncidentHelper
+from tracehound.helpers.integration_helper import IntegrationManagement
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -31,6 +32,11 @@ PoolDep = Annotated[ConnectionPool, Depends(get_pool)]
 def get_api_key_management(request: Request, pool: PoolDep) -> ApiKeyManagement:
     """Build the key manager for this request on the injected pool."""
     return ApiKeyManagement(pool, request.app.state.api_key_hash_secret)
+
+
+def get_integration_management(request: Request, pool: PoolDep) -> IntegrationManagement:
+    """Build the integration store for this request on the injected pool."""
+    return IntegrationManagement(pool, request.app.state.integration_encryption_key)
 
 
 def get_token_verifier(request: Request) -> TokenVerifier:
@@ -58,4 +64,5 @@ def get_current_user(
 
 IncidentHelperDep = Annotated[IncidentHelper, Depends(get_incident_helper)]
 ApiKeyManagementDep = Annotated[ApiKeyManagement, Depends(get_api_key_management)]
+IntegrationManagementDep = Annotated[IntegrationManagement, Depends(get_integration_management)]
 CurrentUserDep = Annotated[User, Depends(get_current_user)]

@@ -20,6 +20,13 @@ from tracehound.schemas.incident import (
     IncidentRecord,
     Severity,
 )
+from tracehound.schemas.integration import (
+    IntegrationCreateRequest,
+    IntegrationKind,
+    IntegrationList,
+    IntegrationStatus,
+    IntegrationSummary,
+)
 from tracehound.schemas.telemetry import Deploy, Edge, ServiceNode, Span, Topology
 from tracehound.schemas.triage import (
     InvestigationScope,
@@ -44,6 +51,11 @@ __all__ = [
     "IncidentAccepted",
     "IncidentCreateRequest",
     "IncidentRecord",
+    "IntegrationCreateRequest",
+    "IntegrationKind",
+    "IntegrationList",
+    "IntegrationStatus",
+    "IntegrationSummary",
     "InvestigationScope",
     "ServiceNode",
     "Severity",

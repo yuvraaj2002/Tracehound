@@ -56,6 +56,20 @@ uv run uvicorn tracehound.api.app:create_app --factory
 The API allows browser calls from the origins in `CORS_ORIGINS` (comma-separated, default
 `http://localhost:5173`).
 
+### Integrations
+
+Users connect their own telemetry backends (Loki first) with `POST /v1/integrations`. The
+credential is encrypted with AES-256-GCM before it reaches the database, using a 32-byte key in
+`.env`:
+
+```bash
+INTEGRATION_ENCRYPTION_KEY=$(python -c 'import base64,os;print(base64.urlsafe_b64encode(os.urandom(32)).decode())')
+```
+
+Losing this key makes every stored credential unreadable. Backend URLs must be https and must not
+point at private addresses; set `ALLOW_INSECURE_INTEGRATION_URLS=1` locally to allow
+`http://localhost:3100` and similar.
+
 ### Authentication (UI)
 
 The UI in `ui/` signs users in with Google or GitHub through Supabase Auth (PKCE flow) and sends

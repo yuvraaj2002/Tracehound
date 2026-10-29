@@ -14,10 +14,12 @@ from psycopg_pool import ConnectionPool
 
 from tracehound.api.api_keys import router as api_keys_router
 from tracehound.api.incidents import router as incidents_router
+from tracehound.api.integrations import router as integrations_router
 from tracehound.auth import TokenVerifier, supabase_url
 from tracehound.db import create_pool, database_url
 from tracehound.helpers.api_key_helper import api_key_hash_secret
 from tracehound.helpers.incident_helper import IncidentHelper
+from tracehound.helpers.integration_helper import integration_encryption_key
 
 
 def _default_pool() -> ConnectionPool:
@@ -35,7 +37,8 @@ def create_app(pool_factory: Callable[[], ConnectionPool] = _default_pool) -> Fa
     """Build the app. The pool opens on startup and closes on shutdown.
 
     By default it connects to `DATABASE_URL`, read from the environment or `.env`. Startup also
-    needs `SUPABASE_URL` (to verify access tokens) and `API_KEY_HASH_SECRET`.
+    needs `SUPABASE_URL` (to verify access tokens), `API_KEY_HASH_SECRET` and
+    `INTEGRATION_ENCRYPTION_KEY`.
     The UI calls the API from another origin, so CORS allows `CORS_ORIGINS`.
     """
     load_dotenv()
@@ -46,6 +49,7 @@ def create_app(pool_factory: Callable[[], ConnectionPool] = _default_pool) -> Fa
             app.state.incident_helper = IncidentHelper(pool)
             app.state.pool = pool
             app.state.api_key_hash_secret = api_key_hash_secret()
+            app.state.integration_encryption_key = integration_encryption_key()
             app.state.token_verifier = TokenVerifier.for_project(supabase_url())
             yield
 
@@ -58,4 +62,5 @@ def create_app(pool_factory: Callable[[], ConnectionPool] = _default_pool) -> Fa
     )
     app.include_router(incidents_router)
     app.include_router(api_keys_router)
+    app.include_router(integrations_router)
     return app

@@ -1918,6 +1918,7 @@ name = "tracehound"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "cryptography" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "langgraph" },
@@ -1941,6 +1942,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cryptography", specifier = ">=50.0.2" },
     { name = "fastapi", specifier = ">=0.143.3" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "langgraph", specifier = ">=1.2.16" },
