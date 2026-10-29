@@ -11,6 +11,7 @@ dependencies = [
     "ollama>=0.6.3",
     "psycopg[binary,pool]>=3.3.6",
     "pydantic>=2.14.1",
+    "pyjwt[crypto]>=2.15.1",
     "python-dotenv>=1.2.4",
     "tenacity>=9.2.1",
     "torch>=2.14.1",

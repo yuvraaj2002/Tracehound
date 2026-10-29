@@ -1,5 +1,11 @@
 """Typed, framework-agnostic contracts: incidents, evidence, hypotheses, workflow states."""
 
+from tracehound.schemas.api_key import (
+    ApiKeyCreated,
+    ApiKeyCreateRequest,
+    ApiKeyPage,
+    ApiKeySummary,
+)
 from tracehound.schemas.evidence import Evidence, EvidenceId, EvidenceSource, hash_payload
 from tracehound.schemas.finding import Finding, SpecialistReport
 from tracehound.schemas.hypothesis import (
@@ -22,6 +28,10 @@ from tracehound.schemas.triage import (
 )
 
 __all__ = [
+    "ApiKeyCreateRequest",
+    "ApiKeyCreated",
+    "ApiKeyPage",
+    "ApiKeySummary",
     "ConfidenceBand",
     "Deploy",
     "Edge",
