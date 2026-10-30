@@ -27,6 +27,8 @@
 .button-primary:disabled { opacity: .6; cursor: progress; }
 .button-quiet { min-height: 36px; padding: 0 14px; border: 1px solid var(--color-line); border-radius: 999px; background: var(--color-white); color: var(--color-ink); font-size: 12px; cursor: pointer; transition: border-color .2s, color .2s; }
 .button-quiet:hover { border-color: var(--color-primary); color: var(--color-primary); }
+.button-quiet:disabled { opacity: .5; cursor: not-allowed; border-color: var(--color-line); color: var(--color-ink); }
+.preview-exit { display: inline-flex; align-items: center; }
 
 .account { position: relative; }
 .account-trigger { display: grid; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type RefObject } from 'react'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { ApiError, createIntegration, deleteIntegration, listIntegrations, updateIntegration, type IntegrationAuth, type IntegrationKind, type IntegrationStatus, type IntegrationSummary, type IntegrationUpdate } from '../lib/api'
 import Dialog from '../Dialog'
 import SignedInHeader from '../SignedInHeader'
@@ -20,6 +20,16 @@ const sources: Source[] = [
 const statusLabel: Record<IntegrationStatus, string> = { untested: 'Not tested yet', active: 'Connected', failing: 'Failing' }
 const authLabel = (config: IntegrationSummary['config']) => config.auth_type === 'basic' ? `Basic · ${config.username}` : config.auth_type === 'bearer' ? 'Bearer token' : 'None'
 
+/** Dev-only sample rows (`?preview=all`) showing every source connected, one per status.
+ *  Only Loki is a real kind today, so these never touch the API. */
+const previewAt = '2026-10-21T09:30:00Z'
+const preview: Record<string, IntegrationSummary> = {
+  Logs: { id: 'preview-logs', kind: 'loki', config: { url: 'https://logs-prod-012.grafana.net', service_label: 'service_name', org_id: null, auth_type: 'basic', username: '987654' }, has_secret: true, status: 'active', last_tested_at: previewAt, created_at: previewAt },
+  Metrics: { id: 'preview-metrics', kind: 'loki', config: { url: 'https://prometheus-prod-24.grafana.net/api/prom', service_label: 'job', org_id: null, auth_type: 'basic', username: '1234567' }, has_secret: true, status: 'active', last_tested_at: previewAt, created_at: previewAt },
+  Traces: { id: 'preview-traces', kind: 'loki', config: { url: 'https://tempo.internal.acme.com', service_label: 'service_name', org_id: 'acme-prod', auth_type: 'bearer' }, has_secret: true, status: 'untested', last_tested_at: null, created_at: '2026-10-28T16:05:00Z' },
+  Deploys: { id: 'preview-deploys', kind: 'loki', config: { url: 'https://api.github.com/repos/acme/checkout', service_label: 'repository', org_id: 'acme', auth_type: 'bearer' }, has_secret: true, status: 'failing', last_tested_at: previewAt, created_at: '2026-10-14T11:20:00Z' },
+}
+
 type Load = { status: 'loading' } | { status: 'ready', items: IntegrationSummary[] } | { status: 'error', message: string }
 
 const fetchAll = (): Promise<Load> => listIntegrations().then(
@@ -34,6 +44,8 @@ export default function Integrations() {
   const [highlight, setHighlight] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
   const heading = useRef<HTMLHeadingElement>(null)
+  const [params] = useSearchParams()
+  const previewing = import.meta.env.DEV && params.get('preview') === 'all'
 
   useEffect(() => {
     let active = true
@@ -69,7 +81,7 @@ export default function Integrations() {
     setStatus(`${source.product} disconnected`)
   }
 
-  const connected = load.status === 'ready' ? load.items.length : 0
+  const connected = previewing ? sources.length : load.status === 'ready' ? load.items.length : 0
 
   return (
     <>
@@ -80,20 +92,24 @@ export default function Integrations() {
           <Link className="back-link" to="/app"><span aria-hidden="true">←</span> Home</Link>
           <div className="workspace-heading">
             <div><p className="eyebrow"><span /> Data sources</p><h1 ref={heading} tabIndex={-1}>Integrations</h1><p className="heading-note">Connect the backends your services already report to. Each specialist reads its evidence from here, with read-only access.</p></div>
-            {load.status === 'ready' && <p className="source-count"><strong>{connected}</strong> of {sources.length} connected</p>}
+            {(previewing || load.status === 'ready') && <p className="source-count"><strong>{connected}</strong> of {sources.length} connected</p>}
           </div>
 
           <section className="source-list" aria-labelledby="source-list-title" aria-busy={load.status === 'loading'}>
             <h2 id="source-list-title" className="sr-only">Data sources</h2>
-            {load.status === 'error' && <div className="notice" role="status">
+            {previewing && <div className="notice">
+              <div><p className="notice-title">Preview with sample data</p><p>Every source is shown connected, one per status. Nothing here is saved, and the actions are switched off.</p></div>
+              <Link className="button-quiet preview-exit" to="/app/integrations">Exit preview</Link>
+            </div>}
+            {!previewing && load.status === 'error' && <div className="notice" role="status">
               <div><p className="notice-title">Couldn’t load your integrations</p><p>{load.message}</p></div>
               <button type="button" className="button-quiet" onClick={retry}>Retry</button>
             </div>}
             {load.status === 'loading' && <p className="sr-only" role="status">Loading integrations</p>}
             <ul>
               {sources.map((source) => {
-                const integration = load.status === 'ready' ? load.items.find((item) => item.kind === source.kind) : undefined
-                return <SourceRow key={source.signal} source={source} integration={integration} loading={load.status === 'loading'} unavailable={load.status === 'error'} isNew={integration?.id === highlight} onConnect={() => setConnecting({ source })} onEdit={(item) => setConnecting({ source, integration: item })} onDisconnect={(item) => setDisconnecting({ source, integration: item })} />
+                const integration = previewing ? preview[source.signal] : load.status === 'ready' ? load.items.find((item) => item.kind === source.kind) : undefined
+                return <SourceRow key={source.signal} source={source} integration={integration} previewing={previewing} loading={!previewing && load.status === 'loading'} unavailable={load.status === 'error'} isNew={integration?.id === highlight} onConnect={() => setConnecting({ source })} onEdit={(item) => setConnecting({ source, integration: item })} onDisconnect={(item) => setDisconnecting({ source, integration: item })} />
               })}
             </ul>
           </section>
@@ -113,21 +129,21 @@ function AgentFace({ source }: { source: Source }) {
   return <span className="agent-face" aria-hidden="true"><img src={source.face} alt="" width="96" height="96" loading="lazy" decoding="async" /></span>
 }
 
-function SourceRow({ source, integration, loading, unavailable, isNew, onConnect, onEdit, onDisconnect }: { source: Source, integration?: IntegrationSummary, loading: boolean, unavailable: boolean, isNew: boolean, onConnect: () => void, onEdit: (integration: IntegrationSummary) => void, onDisconnect: (integration: IntegrationSummary) => void }) {
+function SourceRow({ source, integration, previewing, loading, unavailable, isNew, onConnect, onEdit, onDisconnect }: { source: Source, integration?: IntegrationSummary, previewing: boolean, loading: boolean, unavailable: boolean, isNew: boolean, onConnect: () => void, onEdit: (integration: IntegrationSummary) => void, onDisconnect: (integration: IntegrationSummary) => void }) {
   const titleId = `source-${source.signal.toLowerCase()}`
   const action = () => {
-    if (!source.kind) return <span className="source-soon">Coming soon</span>
+    if (!source.kind && !previewing) return <span className="source-soon">Coming soon</span>
     if (loading) return <span className="skeleton source-skeleton" aria-hidden="true" />
     if (integration) return <>
       <span className={`source-status is-${integration.status}`}><span aria-hidden="true" />{statusLabel[integration.status]}</span>
-      <button type="button" className="button-quiet" onClick={() => onEdit(integration)} aria-label={`Edit ${source.product}`}>Edit</button>
-      <button type="button" className="button-quiet button-danger" onClick={() => onDisconnect(integration)} aria-label={`Disconnect ${source.product}`}>Disconnect</button>
+      <button type="button" className="button-quiet" onClick={() => onEdit(integration)} disabled={previewing} aria-label={`Edit ${source.product}`}>Edit</button>
+      <button type="button" className="button-quiet button-danger" onClick={() => onDisconnect(integration)} disabled={previewing} aria-label={`Disconnect ${source.product}`}>Disconnect</button>
     </>
     return <button type="button" className="button-primary" onClick={onConnect} disabled={unavailable} aria-describedby={titleId}>Connect <span aria-hidden="true">+</span></button>
   }
 
   return (
-    <li className={['source', source.kind ? null : 'is-planned', isNew ? 'is-new' : null].filter(Boolean).join(' ')} style={{ '--source-color': source.color } as CSSProperties} aria-labelledby={titleId}>
+    <li className={['source', source.kind || previewing ? null : 'is-planned', isNew ? 'is-new' : null].filter(Boolean).join(' ')} style={{ '--source-color': source.color } as CSSProperties} aria-labelledby={titleId}>
       <div className="source-head">
         <AgentFace source={source} />
         <div className="source-identity">
