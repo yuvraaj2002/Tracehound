@@ -15,7 +15,35 @@
   --agent-dependency: #286f69;
   --agent-deploy: var(--color-tertiary);
   --agent-hypothesis: var(--color-secondary);
-  font-family: 'Switzer', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  /* Type system: Switzer for everything, Geist Mono for code, Cabinet Grotesk
+     only for the wordmark. Use these tokens instead of raw values. */
+  --font-sans: 'Switzer', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-brand: 'Cabinet Grotesk', 'Switzer', sans-serif;
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 32px;
+  --text-heading: clamp(30px, 3.2vw, 46px);
+  --text-display: clamp(40px, 5.8vw, 88px);
+  --text-poster: clamp(58px, 12.5vw, 182px);
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --leading-tight: 1.1;
+  --leading-snug: 1.3;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+  --tracking-display: -.035em;
+  --tracking-tight: -.02em;
+  --tracking-label: .08em;
+  font-family: var(--font-sans);
+  font-weight: var(--weight-regular);
+  font-feature-settings: 'kern', 'liga';
   color: var(--color-ink);
   background: var(--color-white);
   font-synthesis: none;

@@ -76,11 +76,22 @@ compact and let the sharp group illustration lead the hero.
 
 ## Typography
 
-Switzer is the display and interface family. Cabinet Grotesk 700 is reserved
-for the Tracehound wordmark in the header and footer. Use 500 for headings,
-400 for body, and 600–750 sparingly for emphasis and identity. Compact heading
-tracking, comfortable body line height, and tabular numerals provide hierarchy
-without decorative monospace or additional heading typefaces. Body copy is 14–16px.
+Switzer (`--font-sans`) is the display and interface family. Geist Mono
+(`--font-mono`) is used only for code, keys and API routes. Cabinet Grotesk 700
+(`--font-brand`) is reserved for the Tracehound wordmark in the header and footer.
+
+All type values are tokens in src/index.css; stylesheets use the tokens, not raw values:
+
+- Sizes: `--text-2xs` 11 · `xs` 12 · `sm` 13 · `base` 14 · `md` 15 · `lg` 18 ·
+  `xl` 22 · `2xl` 32, plus fluid `--text-heading` (page and section headings),
+  `--text-display` and `--text-poster` (decorative watermark words).
+- Weights: `--weight-regular` 400 for body, `--weight-medium` 500 for headings
+  and controls, `--weight-semibold` 600 for emphasis.
+- Line height: `--leading-tight` 1.1 · `snug` 1.3 · `normal` 1.5 · `relaxed` 1.65.
+- Tracking: `--tracking-display` for large headings, `--tracking-tight` for
+  subheads, `--tracking-label` for uppercase labels.
+
+Only the wordmark sizes and a few decorative mobile overrides stay as raw values.
 
 Selection is an aesthetic judgment, not an objective best-font claim. Switzer
 was selected for a restrained sans-serif presentation that leaves personality
@@ -94,7 +105,8 @@ Official references:
 - https://www.fontshare.com/licenses
 - https://www.ibm.com/design/language/typography/typeface/
 
-Both families load through Fontshare's official CSS endpoint with font-display: swap.
+Switzer and Cabinet Grotesk load through Fontshare's official CSS endpoint, and
+Geist Mono through Google Fonts, all with font-display: swap.
 It requires network access; Helvetica Neue/Helvetica/Arial provide fallbacks.
 No font binaries are redistributed in this repository.
 

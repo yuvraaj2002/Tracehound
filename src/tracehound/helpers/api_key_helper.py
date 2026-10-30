@@ -1,17 +1,14 @@
 """API key issuing against PostgreSQL. Only an HMAC of each key is stored."""
 
-import base64
-import binascii
 import hashlib
 import hmac
-import json
 import os
 import secrets
-from datetime import datetime
 from uuid import UUID
 
 from psycopg_pool import ConnectionPool
 
+from tracehound.helpers.pagination import decode_cursor, encode_cursor
 from tracehound.schemas import ApiKeyCreated, ApiKeyPage, ApiKeySummary
 
 
@@ -21,23 +18,6 @@ def api_key_hash_secret() -> str:
     if not secret:
         raise RuntimeError("API_KEY_HASH_SECRET is not set. Add it to .env (see README).")
     return secret
-
-
-class InvalidCursor(ValueError):
-    """The pagination cursor was not produced by `ApiKeyManagement.list`."""
-
-
-def encode_cursor(created_at: datetime, key_id: UUID) -> str:
-    raw = json.dumps({"created_at": created_at.isoformat(), "id": str(key_id)})
-    return base64.urlsafe_b64encode(raw.encode()).decode()
-
-
-def decode_cursor(cursor: str) -> tuple[datetime, UUID]:
-    try:
-        data = json.loads(base64.urlsafe_b64decode(cursor.encode()))
-        return datetime.fromisoformat(data["created_at"]), UUID(data["id"])
-    except (binascii.Error, ValueError, KeyError, TypeError) as exc:
-        raise InvalidCursor(cursor) from exc
 
 
 class ApiKeyManagement:

@@ -16,7 +16,8 @@ from pydantic import (
     model_validator,
 )
 
-IntegrationKind = Literal["loki"]
+# Stored kinds, one per specialist. Only Loki can be created through the API so far.
+IntegrationKind = Literal["loki", "prometheus", "tempo", "github"]
 IntegrationStatus = Literal["untested", "active", "failing"]
 
 
@@ -94,7 +95,7 @@ class LokiConfig(_Strict):
 class IntegrationCreateRequest(_Strict):
     """Payload for ``POST /v1/integrations``. The credential in `auth` is stored encrypted."""
 
-    kind: IntegrationKind
+    kind: Literal["loki"]
     config: LokiConfig
     auth: IntegrationAuth
 

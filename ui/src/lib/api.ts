@@ -43,7 +43,8 @@ export type ApiKeyPage = { items: ApiKeySummary[], next_cursor: string | null }
 /** `key` is the raw secret. The API returns it once, here, and never again. */
 export type ApiKeyCreated = Omit<ApiKeySummary, 'last_used_at'> & { key: string }
 
-export type IntegrationKind = 'loki'
+/** Stored kinds, one per specialist. Only Loki can be connected from the UI so far. */
+export type IntegrationKind = 'loki' | 'prometheus' | 'tempo' | 'github'
 export type IntegrationStatus = 'untested' | 'active' | 'failing'
 export type IntegrationAuth =
   | { type: 'none' }
@@ -53,7 +54,7 @@ export type IntegrationAuth =
 /** Non-secret Loki settings. `org_id` is sent as X-Scope-OrgID to multi-tenant Loki. */
 export type LokiConfig = { url: string, service_label?: string, org_id?: string | null }
 
-export type IntegrationCreate = { kind: IntegrationKind, config: LokiConfig, auth: IntegrationAuth }
+export type IntegrationCreate = { kind: 'loki', config: LokiConfig, auth: IntegrationAuth }
 
 /** Omitted fields keep their value; `org_id: null` clears it. Without `auth` the stored
  *  credential is kept; with it, the whole credential is replaced. */
@@ -63,7 +64,7 @@ export type IntegrationUpdate = { config?: Partial<LokiConfig>, auth?: Integrati
 export type IntegrationSummary = {
   id: string
   kind: IntegrationKind
-  config: Required<LokiConfig> & { auth_type: IntegrationAuth['type'], username?: string }
+  config: Required<Pick<LokiConfig, 'url' | 'org_id'>> & { service_label?: string, repository?: string, auth_type: IntegrationAuth['type'], username?: string }
   has_secret: boolean
   status: IntegrationStatus
   last_tested_at: string | null
@@ -121,7 +122,12 @@ async function errorMessage(response: Response) {
   return `Request failed (${response.status})`
 }
 
-export const listIncidents = () => apiFetch<Incident[]>('/v1/incidents')
+/** Pass `next_cursor` back as `cursor` for the next page; null on the last page. */
+export type IncidentPage = { items: Incident[], next_cursor: string | null }
+
+/** One page of incidents created in `[from, to)`, newest first. Times are ISO-8601 with a timezone. */
+export const listIncidents = (from: string, to: string, cursor?: string | null, limit = 10) =>
+  apiFetch<IncidentPage>(`/v1/incidents?${new URLSearchParams({ from, to, limit: String(limit), ...(cursor && { cursor }) })}`)
 
 export const createIncident = (incident: IncidentCreate) => apiFetch<IncidentAccepted>('/v1/incidents', { method: 'POST', body: JSON.stringify(incident) })
 
@@ -138,3 +144,30 @@ export const createIntegration = (integration: IntegrationCreate) => apiFetch<In
 export const deleteIntegration = (id: string) => apiFetch<void>(`/v1/integrations/${encodeURIComponent(id)}`, { method: 'DELETE' })
 
 export const updateIntegration = (id: string, changes: IntegrationUpdate) => apiFetch<IntegrationSummary>(`/v1/integrations/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(changes) })
+
+export type SeverityCounts = Record<Severity, number>
+
+/** Incidents created on one UTC day (`day` is YYYY-MM-DD), clipped to the requested range. */
+export type IncidentStatsPoint = SeverityCounts & { day: string, total: number }
+
+/** Dashboard figures for the signed-in user's incidents created in `[from, to)`. */
+export type IncidentStats = {
+  from: string
+  to: string
+  total: number
+  /** Count for the equal-length period immediately before `from`. */
+  previous_total: number
+  by_severity: SeverityCounts
+  by_state: Record<string, number>
+  /** Up to 5, busiest first. */
+  top_services: { service_id: string, count: number }[]
+  /** One point per UTC day, zero-filled. */
+  timeseries: IncidentStatsPoint[]
+  /** Null when there are no incidents in range. */
+  avg_window_seconds: number | null
+  /** Fraction (0-1) of incidents with a trace_id; null when there are none. */
+  trace_coverage: number | null
+}
+
+/** `from` and `to` are ISO-8601 with a timezone; the range may span at most 366 days. */
+export const getIncidentStats = (from: string, to: string) => apiFetch<IncidentStats>(`/v1/incidents/stats?${new URLSearchParams({ from, to })}`)

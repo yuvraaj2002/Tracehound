@@ -8,26 +8,27 @@ import '../auth.css'
 const formatDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 const message = (err: unknown, fallback: string) => err instanceof Error ? err.message : fallback
 
-/** One slot per specialist data source. Only Loki is connectable today; the rest say so plainly. */
-type Source = { signal: string, agent: string, name: string, face: string, product: string, description: string, color: string, kind: IntegrationKind | null }
+/** One slot per specialist data source. Only Loki can be connected or edited here today; the
+ *  others show a stored connection if one exists, and otherwise say they're coming. */
+type Source = { signal: string, agent: string, name: string, face: string, product: string, description: string, color: string, kind: IntegrationKind, connectable: boolean }
 const sources: Source[] = [
-  { signal: 'Logs', name: 'Echo', face: '/agents/faces/logs.jpg', agent: 'Logs agent', product: 'Grafana Loki', description: 'Reads error bursts, stack traces and new messages from your services during the incident window.', color: 'var(--agent-logs)', kind: 'loki' },
-  { signal: 'Metrics', name: 'Pulse', face: '/agents/faces/metrics.jpg', agent: 'Metrics agent', product: 'Prometheus', description: 'Compares latency, error rate and saturation against the baseline before the incident.', color: 'var(--agent-metrics)', kind: null },
-  { signal: 'Traces', name: 'Tether', face: '/agents/faces/dependency.jpg', agent: 'Dependency agent', product: 'Grafana Tempo', description: 'Follows slow and failing spans across service boundaries to find where trouble starts.', color: 'var(--agent-dependency)', kind: null },
-  { signal: 'Deploys', name: 'Ledger', face: '/agents/faces/deploy.jpg', agent: 'Deploy agent', product: 'GitHub', description: 'Lines up releases and configuration changes with the moment the incident began.', color: 'var(--agent-deploy)', kind: null },
+  { signal: 'Logs', name: 'Echo', face: '/agents/faces/logs.jpg', agent: 'Logs agent', product: 'Grafana Loki', description: 'Reads error bursts, stack traces and new messages from your services during the incident window.', color: 'var(--agent-logs)', kind: 'loki', connectable: true },
+  { signal: 'Metrics', name: 'Pulse', face: '/agents/faces/metrics.jpg', agent: 'Metrics agent', product: 'Prometheus', description: 'Compares latency, error rate and saturation against the baseline before the incident.', color: 'var(--agent-metrics)', kind: 'prometheus', connectable: false },
+  { signal: 'Traces', name: 'Tether', face: '/agents/faces/dependency.jpg', agent: 'Dependency agent', product: 'Grafana Tempo', description: 'Follows slow and failing spans across service boundaries to find where trouble starts.', color: 'var(--agent-dependency)', kind: 'tempo', connectable: false },
+  { signal: 'Deploys', name: 'Ledger', face: '/agents/faces/deploy.jpg', agent: 'Deploy agent', product: 'GitHub', description: 'Lines up releases and configuration changes with the moment the incident began.', color: 'var(--agent-deploy)', kind: 'github', connectable: false },
 ]
 
 const statusLabel: Record<IntegrationStatus, string> = { untested: 'Not tested yet', active: 'Connected', failing: 'Failing' }
 const authLabel = (config: IntegrationSummary['config']) => config.auth_type === 'basic' ? `Basic · ${config.username}` : config.auth_type === 'bearer' ? 'Bearer token' : 'None'
 
 /** Dev-only sample rows (`?preview=all`) showing every source connected, one per status.
- *  Only Loki is a real kind today, so these never touch the API. */
+ *  They never touch the API. */
 const previewAt = '2026-10-21T09:30:00Z'
 const preview: Record<string, IntegrationSummary> = {
   Logs: { id: 'preview-logs', kind: 'loki', config: { url: 'https://logs-prod-012.grafana.net', service_label: 'service_name', org_id: null, auth_type: 'basic', username: '987654' }, has_secret: true, status: 'active', last_tested_at: previewAt, created_at: previewAt },
-  Metrics: { id: 'preview-metrics', kind: 'loki', config: { url: 'https://prometheus-prod-24.grafana.net/api/prom', service_label: 'job', org_id: null, auth_type: 'basic', username: '1234567' }, has_secret: true, status: 'active', last_tested_at: previewAt, created_at: previewAt },
-  Traces: { id: 'preview-traces', kind: 'loki', config: { url: 'https://tempo.internal.acme.com', service_label: 'service_name', org_id: 'acme-prod', auth_type: 'bearer' }, has_secret: true, status: 'untested', last_tested_at: null, created_at: '2026-10-28T16:05:00Z' },
-  Deploys: { id: 'preview-deploys', kind: 'loki', config: { url: 'https://api.github.com/repos/acme/checkout', service_label: 'repository', org_id: 'acme', auth_type: 'bearer' }, has_secret: true, status: 'failing', last_tested_at: previewAt, created_at: '2026-10-14T11:20:00Z' },
+  Metrics: { id: 'preview-metrics', kind: 'prometheus', config: { url: 'https://prometheus-prod-24.grafana.net/api/prom', service_label: 'job', org_id: null, auth_type: 'basic', username: '1234567' }, has_secret: true, status: 'active', last_tested_at: previewAt, created_at: previewAt },
+  Traces: { id: 'preview-traces', kind: 'tempo', config: { url: 'https://tempo.internal.acme.com', service_label: 'service_name', org_id: 'acme-prod', auth_type: 'bearer' }, has_secret: true, status: 'untested', last_tested_at: null, created_at: '2026-10-28T16:05:00Z' },
+  Deploys: { id: 'preview-deploys', kind: 'github', config: { url: 'https://api.github.com', repository: 'acme/checkout', org_id: null, auth_type: 'bearer' }, has_secret: true, status: 'failing', last_tested_at: previewAt, created_at: '2026-10-14T11:20:00Z' },
 }
 
 type Load = { status: 'loading' } | { status: 'ready', items: IntegrationSummary[] } | { status: 'error', message: string }
@@ -132,18 +133,18 @@ function AgentFace({ source }: { source: Source }) {
 function SourceRow({ source, integration, previewing, loading, unavailable, isNew, onConnect, onEdit, onDisconnect }: { source: Source, integration?: IntegrationSummary, previewing: boolean, loading: boolean, unavailable: boolean, isNew: boolean, onConnect: () => void, onEdit: (integration: IntegrationSummary) => void, onDisconnect: (integration: IntegrationSummary) => void }) {
   const titleId = `source-${source.signal.toLowerCase()}`
   const action = () => {
-    if (!source.kind && !previewing) return <span className="source-soon">Coming soon</span>
+    if (!source.connectable && !integration && !previewing) return <span className="source-soon">Coming soon</span>
     if (loading) return <span className="skeleton source-skeleton" aria-hidden="true" />
     if (integration) return <>
       <span className={`source-status is-${integration.status}`}><span aria-hidden="true" />{statusLabel[integration.status]}</span>
-      <button type="button" className="button-quiet" onClick={() => onEdit(integration)} disabled={previewing} aria-label={`Edit ${source.product}`}>Edit</button>
+      {source.connectable && <button type="button" className="button-quiet" onClick={() => onEdit(integration)} disabled={previewing} aria-label={`Edit ${source.product}`}>Edit</button>}
       <button type="button" className="button-quiet button-danger" onClick={() => onDisconnect(integration)} disabled={previewing} aria-label={`Disconnect ${source.product}`}>Disconnect</button>
     </>
     return <button type="button" className="button-primary" onClick={onConnect} disabled={unavailable} aria-describedby={titleId}>Connect <span aria-hidden="true">+</span></button>
   }
 
   return (
-    <li className={['source', source.kind || previewing ? null : 'is-planned', isNew ? 'is-new' : null].filter(Boolean).join(' ')} style={{ '--source-color': source.color } as CSSProperties} aria-labelledby={titleId}>
+    <li className={['source', source.connectable || integration || previewing ? null : 'is-planned', isNew ? 'is-new' : null].filter(Boolean).join(' ')} style={{ '--source-color': source.color } as CSSProperties} aria-labelledby={titleId}>
       <div className="source-head">
         <AgentFace source={source} />
         <div className="source-identity">
@@ -154,9 +155,11 @@ function SourceRow({ source, integration, previewing, loading, unavailable, isNe
         <div className="source-action">{action()}</div>
       </div>
       {integration && <dl className="source-details">
-        <div className="source-detail-wide"><dt>Endpoint</dt><dd><code title={integration.config.url}>{integration.config.url}</code></dd></div>
+        <div className="source-detail-wide"><dt>{integration.config.repository ? 'API' : 'Endpoint'}</dt><dd><code title={integration.config.url}>{integration.config.url}</code></dd></div>
         <div><dt>Authentication</dt><dd>{authLabel(integration.config)}{integration.has_secret && <span className="source-secret"><svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.4" /><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" fill="none" stroke="currentColor" strokeWidth="1.4" /></svg>Encrypted</span>}</dd></div>
-        <div><dt>Service label</dt><dd><code>{integration.config.service_label}</code></dd></div>
+        {integration.config.repository
+          ? <div><dt>Repository</dt><dd><code>{integration.config.repository}</code></dd></div>
+          : <div><dt>Service label</dt><dd><code>{integration.config.service_label}</code></dd></div>}
         <div><dt>Tenant</dt><dd>{integration.config.org_id ? <code>{integration.config.org_id}</code> : 'Default'}</dd></div>
         <div><dt>Connected</dt><dd>{formatDate(integration.created_at)}</dd></div>
       </dl>}

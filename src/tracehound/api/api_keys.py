@@ -7,7 +7,7 @@ import psycopg
 from fastapi import APIRouter, HTTPException, Response, status
 
 from tracehound.api.dependencies import ApiKeyManagementDep, CurrentUserDep
-from tracehound.helpers.api_key_helper import InvalidCursor
+from tracehound.helpers.pagination import InvalidCursor
 from tracehound.schemas import ApiKeyCreated, ApiKeyCreateRequest, ApiKeyPage
 
 logger = logging.getLogger(__name__)
