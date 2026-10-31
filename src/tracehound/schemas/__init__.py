@@ -35,6 +35,8 @@ from tracehound.schemas.integration import (
     IntegrationSummary,
     IntegrationUpdateRequest,
 )
+from tracehound.schemas.me import Me
+from tracehound.schemas.plan import BillingInterval, PlanList, PlanPrice, PlanSummary
 from tracehound.schemas.telemetry import Deploy, Edge, ServiceNode, Span, Topology
 from tracehound.schemas.triage import (
     InvestigationScope,
@@ -47,6 +49,7 @@ __all__ = [
     "ApiKeyCreated",
     "ApiKeyPage",
     "ApiKeySummary",
+    "BillingInterval",
     "ConfidenceBand",
     "Deploy",
     "Edge",
@@ -71,6 +74,10 @@ __all__ = [
     "IntegrationSummary",
     "IntegrationUpdateRequest",
     "InvestigationScope",
+    "Me",
+    "PlanList",
+    "PlanPrice",
+    "PlanSummary",
     "ServiceCount",
     "ServiceNode",
     "Severity",

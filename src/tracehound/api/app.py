@@ -15,6 +15,8 @@ from psycopg_pool import ConnectionPool
 from tracehound.api.api_keys import router as api_keys_router
 from tracehound.api.incidents import router as incidents_router
 from tracehound.api.integrations import router as integrations_router
+from tracehound.api.me import router as me_router
+from tracehound.api.plans import router as plans_router
 from tracehound.auth import TokenVerifier, supabase_url
 from tracehound.db import create_pool, database_url
 from tracehound.helpers.api_key_helper import api_key_hash_secret
@@ -63,4 +65,6 @@ def create_app(pool_factory: Callable[[], ConnectionPool] = _default_pool) -> Fa
     app.include_router(incidents_router)
     app.include_router(api_keys_router)
     app.include_router(integrations_router)
+    app.include_router(plans_router)
+    app.include_router(me_router)
     return app

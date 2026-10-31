@@ -18,6 +18,8 @@ class User:
 
     user_id: UUID
     email: str | None = None
+    name: str | None = None
+    avatar_url: str | None = None
 
 
 class SigningKeySource(Protocol):
@@ -59,6 +61,14 @@ class TokenVerifier:
                 issuer=self._issuer,
                 options={"require": ["exp", "sub", "aud", "iss"]},
             )
-            return User(user_id=UUID(claims["sub"]), email=claims.get("email"))
+            # Supabase copies the OAuth profile into `user_metadata`; GitHub may only give a login.
+            metadata = claims.get("user_metadata") or {}
+            name = metadata.get("full_name") or metadata.get("name") or metadata.get("user_name")
+            return User(
+                user_id=UUID(claims["sub"]),
+                email=claims.get("email"),
+                name=name if isinstance(name, str) else None,
+                avatar_url=metadata.get("avatar_url") or None,
+            )
         except (jwt.PyJWTError, ValueError) as exc:
             raise InvalidToken(str(exc)) from exc

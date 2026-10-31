@@ -10,6 +10,7 @@ from tracehound.auth import InvalidToken, TokenVerifier, User
 from tracehound.helpers.api_key_helper import ApiKeyManagement
 from tracehound.helpers.incident_helper import IncidentHelper
 from tracehound.helpers.integration_helper import IntegrationManagement
+from tracehound.helpers.plan_helper import PlanCatalog
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -39,6 +40,11 @@ def get_integration_management(request: Request, pool: PoolDep) -> IntegrationMa
     return IntegrationManagement(pool, request.app.state.integration_encryption_key)
 
 
+def get_plan_catalog(pool: PoolDep) -> PlanCatalog:
+    """Build the plan catalogue for this request on the injected pool."""
+    return PlanCatalog(pool)
+
+
 def get_token_verifier(request: Request) -> TokenVerifier:
     verifier: TokenVerifier = request.app.state.token_verifier
     return verifier
@@ -65,4 +71,5 @@ def get_current_user(
 IncidentHelperDep = Annotated[IncidentHelper, Depends(get_incident_helper)]
 ApiKeyManagementDep = Annotated[ApiKeyManagement, Depends(get_api_key_management)]
 IntegrationManagementDep = Annotated[IntegrationManagement, Depends(get_integration_management)]
+PlanCatalogDep = Annotated[PlanCatalog, Depends(get_plan_catalog)]
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
