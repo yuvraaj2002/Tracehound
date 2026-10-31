@@ -1,0 +1,79 @@
+/* Pricing: white cards with quiet rules. The featured plan earns an ink-blue
+   border and button, never a colored fill. */
+.pricing { border-top: 1px solid var(--color-line); padding: 96px max(4.5%, calc((100% - 1376px)/2)); }
+
+.billing-toggle { display: inline-flex; gap: 4px; margin: 56px 0 0; padding: 4px; border: 1px solid var(--color-line); border-radius: 999px; }
+.billing-toggle label { position: relative; cursor: pointer; }
+.billing-toggle input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.billing-toggle span { display: inline-flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 18px; border-radius: 999px; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--color-muted); transition: background .2s, color .2s; }
+.billing-toggle em { font-style: normal; font-size: var(--text-2xs); font-weight: var(--weight-semibold); color: var(--color-tertiary); letter-spacing: .01em; }
+.billing-toggle label:hover span { color: var(--color-ink); }
+.billing-toggle input:checked + span { background: var(--color-primary); color: white; }
+.billing-toggle input:checked + span em { color: white; opacity: .85; }
+.billing-toggle input:focus-visible + span { outline: 3px solid var(--color-primary); outline-offset: 3px; }
+
+.plan-grid { list-style: none; margin: 28px 0 0; padding: 0; display: grid; grid-template-columns: repeat(min(var(--plan-count, 3), 4), minmax(0, 1fr)); gap: 20px; align-items: stretch; }
+.plan-card { position: relative; display: flex; flex-direction: column; padding: 30px 28px 32px; border: 1px solid var(--color-line); border-radius: 18px; background: var(--color-white); transition: border-color .2s, box-shadow .2s; }
+.plan-card:not(.is-skeleton):hover { border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-line)); }
+.plan-card.is-featured { border-color: var(--color-primary); box-shadow: inset 0 0 0 1px var(--color-primary), 0 22px 44px -30px rgb(40 75 99 / .5); }
+
+.plan-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 28px; }
+.plan-head h3 { margin: 0; font-size: var(--text-xl); font-weight: var(--weight-medium); letter-spacing: var(--tracking-tight); }
+.plan-badge { padding: 4px 10px; border: 1px solid var(--color-primary); border-radius: 999px; font-size: var(--text-2xs); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--color-primary); white-space: nowrap; }
+.plan-description { margin: 12px 0 0; min-height: 4.95em; font-size: var(--text-base); line-height: var(--leading-relaxed); color: var(--color-muted); }
+
+.plan-price { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin: 26px 0 0; }
+.plan-was { font-size: var(--text-lg); color: var(--color-muted); text-decoration: line-through; font-variant-numeric: tabular-nums; }
+.plan-amount { font-weight: var(--weight-medium); letter-spacing: var(--tracking-display); line-height: 1; font-variant-numeric: tabular-nums; font-size: clamp(40px, 4vw, 54px); }
+.plan-unit { font-size: var(--text-base); color: var(--color-muted); }
+.plan-detail { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 12px 0 0; min-height: 22px; font-size: var(--text-sm); color: var(--color-muted); }
+.plan-save { padding: 2px 9px; border-radius: 999px; background: var(--color-soft); font-size: var(--text-2xs); font-weight: var(--weight-semibold); color: var(--color-tertiary); }
+.plan-rate { margin: 6px 0 0; min-height: 20px; font-size: var(--text-sm); color: var(--color-ink); }
+
+.plan-action { display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin-top: 22px; min-height: 48px; padding: 0 22px; border: 1px solid var(--color-line); border-radius: 999px; background: var(--color-white); color: var(--color-ink); font-size: var(--text-base); font-weight: var(--weight-medium); cursor: pointer; transition: background .2s, border-color .2s, color .2s; }
+.plan-action span[aria-hidden] { transition: transform .2s; }
+.plan-action:hover:not(:disabled) { border-color: var(--color-primary); color: var(--color-primary); }
+.plan-action:hover:not(:disabled) span[aria-hidden] { transform: translateX(2px); }
+.plan-action:disabled { opacity: .5; cursor: not-allowed; }
+.is-featured .plan-action { border-color: var(--color-primary); background: var(--color-primary); color: white; }
+.is-featured .plan-action:hover:not(:disabled) { background: var(--color-ink); border-color: var(--color-ink); color: white; }
+.plan-pending { margin: 10px 0 0; min-height: 20px; font-size: var(--text-xs); line-height: var(--leading-normal); color: var(--color-primary); text-align: center; }
+.plan-pending:empty { visibility: hidden; }
+
+.plan-features-label { margin: 14px 0 0; padding-top: 22px; border-top: 1px dashed var(--color-line); font-size: var(--text-2xs); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--color-muted); }
+.plan-features { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 13px; }
+.plan-features li { display: flex; align-items: flex-start; gap: 11px; font-size: var(--text-base); line-height: var(--leading-normal); }
+.plan-features strong { font-weight: var(--weight-semibold); }
+.plan-features svg { flex: none; margin-top: 2px; padding: 2px; box-sizing: content-box; width: 12px; height: 12px; border-radius: 50%; background: var(--color-soft); color: var(--color-primary); }
+
+.plan-card.is-skeleton { min-height: 520px; gap: 18px; }
+.plan-card.is-skeleton span { display: block; height: 14px; border-radius: 7px; background: var(--color-soft); }
+.plan-card.is-skeleton span:nth-child(1) { width: 40%; }
+.plan-card.is-skeleton span:nth-child(2) { width: 60%; height: 44px; margin-top: 12px; }
+.plan-card.is-skeleton span:nth-child(3) { width: 75%; }
+.plan-card.is-skeleton span:nth-child(4) { margin-top: auto; height: 48px; border-radius: 999px; }
+@media (prefers-reduced-motion: no-preference) {
+  .plan-card.is-skeleton span { animation: plan-shimmer 1.4s ease-in-out infinite; }
+}
+@keyframes plan-shimmer { 50% { opacity: .45; } }
+
+.pricing-notice { margin-top: 40px; padding: 26px 0; border-top: 1px solid var(--color-line); border-bottom: 1px solid var(--color-line); display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.pricing-notice p { margin: 0; font-size: var(--text-base); line-height: var(--leading-relaxed); color: var(--color-muted); }
+.pricing-retry { min-height: 40px; padding: 0 18px; border: 1px solid var(--color-line); border-radius: 999px; background: var(--color-white); color: var(--color-ink); font-size: var(--text-sm); cursor: pointer; transition: border-color .2s, color .2s; }
+.pricing-retry:hover { border-color: var(--color-primary); color: var(--color-primary); }
+
+.plan-footnote { margin: 28px 0 0; font-size: var(--text-xs); color: var(--color-muted); }
+
+@media (max-width: 1000px) {
+  .plan-grid { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+}
+@media (max-width: 700px) {
+  .pricing { padding-block: 56px; }
+  .billing-toggle { margin-top: 36px; }
+  .plan-grid { grid-template-columns: 1fr; gap: 16px; }
+  .plan-card { padding: 24px 22px 20px; }
+  .plan-description { min-height: 0; }
+}
+@media (max-width: 360px) {
+  .billing-toggle span { padding: 0 12px; gap: 6px; }
+}

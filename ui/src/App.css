@@ -260,3 +260,4 @@ h1 > span { color: var(--color-muted); }
   .journey-stages > li:not(.is-done):not(.is-working) :is(.journey-souls, .journey-status, .journey-snapshot) { display: none; }
   .journey-stages > li:not(.is-done) .journey-snapshot { display: none; }
 }
+@media (max-width: 360px) { .nav nav { gap: 8px; } }

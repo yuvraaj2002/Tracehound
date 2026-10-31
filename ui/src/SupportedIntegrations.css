@@ -1,0 +1,34 @@
+/* Integrations: a slow conveyor belt of white cards that runs edge to edge.
+   Only the small signal label carries the owning agent's color. */
+.supported { --belt-gap: 20px; --belt-seconds: 44s; border-top: 1px solid var(--color-line); padding-block: 96px; overflow: hidden; }
+.supported-inset { padding-inline: max(4.5%, calc((100% - 1376px)/2)); }
+
+.supported-belt { margin-top: 56px; padding-block: 6px; -webkit-mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent); mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent); }
+.supported-track { display: flex; width: max-content; animation: belt-scroll var(--belt-seconds) linear infinite; will-change: transform; }
+/* Each set ends with one gap, so moving by exactly one set's width lines the copies up again. */
+@keyframes belt-scroll { to { transform: translate3d(calc(-100% / 3), 0, 0); } }
+
+.supported-set { list-style: none; margin: 0; padding: 0 var(--belt-gap) 0 0; display: flex; gap: var(--belt-gap); }
+.supported-card { flex: 0 0 340px; display: flex; flex-direction: column; padding: 26px 24px 28px; border: 1px solid var(--color-line); border-radius: 18px; background: var(--color-white); transition: border-color .2s; }
+.supported-card:hover { border-color: color-mix(in srgb, var(--source-color) 40%, var(--color-line)); }
+.supported-card img { display: block; width: 44px; height: 40px; object-fit: contain; object-position: left center; }
+.supported-signal { display: flex; align-items: center; gap: 8px; margin: 30px 0 0; font-size: var(--text-2xs); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--source-color); }
+.supported-signal span { width: 6px; height: 6px; border-radius: 50%; background: var(--source-color); }
+.supported-card h3 { margin: 10px 0 0; font-size: var(--text-xl); font-weight: var(--weight-medium); letter-spacing: var(--tracking-tight); }
+.supported-description { margin: 12px 0 0; font-size: var(--text-base); line-height: var(--leading-relaxed); color: var(--color-muted); }
+
+.supported-foot { margin-top: 28px; }
+.supported-note { margin: 0; font-size: var(--text-xs); color: var(--color-muted); }
+
+@media (max-width: 700px) {
+  .supported { padding-block: 56px; --belt-seconds: 36s; }
+  .supported-belt { margin-top: 36px; }
+  .supported-card { flex-basis: 280px; padding: 22px 20px 24px; }
+}
+/* Reduced motion: no belt. Show one static, wrapped set and drop the copies. */
+@media (prefers-reduced-motion: reduce) {
+  .supported-belt { -webkit-mask-image: none; mask-image: none; padding-inline: max(4.5%, calc((100% - 1376px)/2)); }
+  .supported-track { width: auto; animation: none; }
+  .supported-set { flex-wrap: wrap; padding-right: 0; }
+  .supported-set[aria-hidden],   .supported-card { flex: 1 1 260px; }
+}

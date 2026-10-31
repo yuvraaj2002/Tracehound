@@ -3,8 +3,10 @@ import { Link } from 'react-router'
 import './App.css'
 import InvestigationFlow from './InvestigationFlow'
 import AgentThread from './AgentThread'
+import Pricing from './Pricing'
+import SupportedIntegrations from './SupportedIntegrations'
 import { useSmoothScroll } from './useSmoothScroll'
-import { useAuth } from './auth/context'
+import { useGetStarted } from './auth/useGetStarted'
 
 const agents = [
   { id: 'triage', name: 'Marshal', specialty: 'Triage', image: '/agents/triage.png', alt: 'Blue investigator coordinating scope and priorities', role: 'One alert. A coordinated team.', description: 'Sizes up the incident and directs the right specialists toward the evidence. Keeps the investigation focused as new findings arrive.', color: 'var(--agent-triage)', signal: 'Incoming alerts & context', output: 'A focused investigation plan' },
@@ -19,7 +21,7 @@ const year = new Date().getFullYear()
 
 function App() {
   useSmoothScroll()
-  const { session } = useAuth()
+  const getStarted = useGetStarted()
   const [selected, setSelected] = useState(0)
 
   useEffect(() => {
@@ -38,8 +40,9 @@ function App() {
         <nav aria-label="Main navigation">
           <a href="#agents">Agents</a>
           <a href="#how">How it works</a>
+          <a href="#pricing">Pricing</a>
           <a className="nav-developer" href="https://www.linkedin.com/in/yuvraaj-singh/" target="_blank" rel="noopener noreferrer">Meet the developer <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></a>
-          <Link className="nav-cta" to={session ? '/app' : '/signin'}>Get started <span aria-hidden="true">→</span></Link>
+          <Link className="nav-cta" to={getStarted.to} onClick={getStarted.start} aria-busy={getStarted.checking || undefined}>Get started <span aria-hidden="true">→</span></Link>
         </nav>
       </header>
 
@@ -84,6 +87,8 @@ function App() {
         </section>
 
         <InvestigationFlow />
+        <SupportedIntegrations />
+        <Pricing />
       </main>
       <footer className="footer"><a className="brand" href="#" aria-label="Tracehound home"><img className="brand-symbol" src="/tracehound-mark.svg" alt="" width="32" height="32" /><span>Tracehound</span></a><p>Follow the evidence.</p><div className="footer-links"><a href="https://www.linkedin.com/in/yuvraaj-singh/" target="_blank" rel="noopener noreferrer">Meet the developer <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></a><span>© {year} Tracehound</span></div></footer>
     </>

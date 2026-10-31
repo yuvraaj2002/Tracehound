@@ -171,3 +171,21 @@ export type IncidentStats = {
 
 /** `from` and `to` are ISO-8601 with a timezone; the range may span at most 366 days. */
 export const getIncidentStats = (from: string, to: string) => apiFetch<IncidentStats>(`/v1/incidents/stats?${new URLSearchParams({ from, to })}`)
+
+export type BillingInterval = 'month' | 'year'
+
+/** A live price. `amount_minor` is in the currency's minor unit, so $19.99 is 1999. */
+export type PlanPrice = { currency: string, amount_minor: number, billing_interval: BillingInterval }
+
+/** An active plan. `credits` are granted per month on either interval; one credit is one run.
+ *  `prices` is empty for a plan with no price, such as a free one. */
+export type PlanSummary = { code: string, display_name: string, credits: number, prices: PlanPrice[] }
+
+/** Public: the plans on offer, in pricing-page order. Needs no session. */
+export const listPlans = () => apiFetch<{ items: PlanSummary[] }>('/v1/plans')
+
+/** The signed-in user, from their access token. `name` and `avatar_url` come from the OAuth profile. */
+export type Me = { id: string, email: string | null, name: string | null, avatar_url: string | null }
+
+/** Resolves when the API accepts the session; a 401 signs out locally and rejects. */
+export const getMe = () => apiFetch<Me>('/v1/me')
