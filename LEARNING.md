@@ -6,6 +6,7 @@ Each entry says what the idea is, why we use it, and where it shows up in the co
 ## Contents
 
 - [Storing money in minor units](#storing-money-in-minor-units)
+- [Supabase access and refresh tokens](#supabase-access-and-refresh-tokens)
 
 ---
 
@@ -44,3 +45,26 @@ payment integration can pass the value straight through.
 - Postgres `numeric(10,2)` would also be exact inside the database. Minor units mainly
   help once the value leaves the database: in JSON, JavaScript and payment APIs.
 - The column is named `price_minor`, not `price`, so nobody reads `1900` as $1,900.
+
+---
+
+## Supabase access and refresh tokens
+
+*Came up in: the UI staying signed in the next morning and calling `GET /v1/me`*
+
+A Supabase session has two tokens, both stored in the browser's localStorage by supabase-js:
+
+- **Access token (JWT):** valid for 1 hour by default (dashboard: Authentication → Sessions →
+  JWT expiry limit). This is the only token with a short expiry.
+- **Refresh token:** no timer by default. It can be used once, and using it issues a new
+  access token and a new refresh token.
+
+So being signed in the next day is expected. On page load, supabase-js sees the stored
+access token has expired and exchanges the refresh token for a new pair
+(`/auth/v1/token?grant_type=refresh_token`). It also refreshes in the background while a
+tab stays open. The user stays signed in until they sign out, clear site storage, or hit an
+optional time-box or inactivity limit set in the dashboard.
+
+**In our stack.** The refresh happens inside supabase-js in the React (Vite) app. FastAPI
+never sees the refresh token. It only receives the fresh access token in the
+`Authorization` header (e.g. on `/v1/me`) and validates that JWT.
