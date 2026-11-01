@@ -56,6 +56,15 @@ uv run uvicorn tracehound.api.app:create_app --factory
 The API allows browser calls from the origins in `CORS_ORIGINS` (comma-separated, default
 `http://localhost:5173`).
 
+### Investigations
+
+`POST /v1/incidents` starts an investigation in a background thread. Only users listed in
+`FIXTURE_USER_IDS` (comma-separated UUIDs) are investigated, against the scenario files in
+`scenarios/<FIXTURE_SCENARIO>` (default `checkout_db_pool_exhaustion`; override the folder with
+`FIXTURE_SCENARIOS_DIR`); other users' incidents end FAILED because live integrations are not
+wired up yet. `INVESTIGATION_WORKERS` (default 2) caps concurrent runs, and `OLLAMA_MODEL`
+overrides the local Ollama model. Ollama must be running, or the run ends FAILED.
+
 ### Integrations
 
 Users connect their own telemetry backends (Loki first) with `POST /v1/integrations`. The

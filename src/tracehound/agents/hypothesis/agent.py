@@ -1,5 +1,6 @@
 """Hypothesis agent: one LLM call over every finding, checked and turned into Hypothesis records."""
 
+import logging
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
@@ -18,6 +19,8 @@ from tracehound.schemas.hypothesis import (
 )
 from tracehound.schemas.incident import IncidentRecord
 from tracehound.schemas.triage import Specialist
+
+logger = logging.getLogger(__name__)
 
 
 class EvidenceView(BaseModel):
@@ -111,7 +114,11 @@ class HypothesisAgent:
     def hypotheses_from_answer(
         ctx: HypothesisContext, answer: HypothesisAnswer, run_id: UUID
     ) -> list[Hypothesis]:
-        """Raises ValueError on unseen IDs, or when a draft breaks the Hypothesis rules."""
+        """Raises ValueError on unseen IDs, or when no draft meets the Hypothesis rules.
+
+        A draft that breaks the citation rules is dropped with a warning, so one bad draft from
+        a small model doesn't discard the valid ones beside it.
+        """
         shown = {e.id for e in ctx.evidence}
         cited = {
             evidence_id
@@ -121,17 +128,28 @@ class HypothesisAgent:
         unknown = cited - shown
         if unknown:
             raise ValueError(f"model cited evidence it was not shown: {sorted(unknown)}")
-        return [
-            Hypothesis(
-                run_id=run_id,
-                statement=draft.statement,
-                mechanism=draft.mechanism,
-                confidence=draft.confidence,
-                confidence_rationale=draft.confidence_rationale,
-                status=HypothesisStatus(draft.status),
-                supporting_evidence_ids=list(dict.fromkeys(draft.supporting_evidence_ids)),
-                contradicting_evidence_ids=list(dict.fromkeys(draft.contradicting_evidence_ids)),
-                verification_steps=draft.verification_steps,
-            )
-            for draft in answer.hypotheses
-        ]
+        hypotheses: list[Hypothesis] = []
+        errors: list[ValueError] = []
+        for draft in answer.hypotheses:
+            try:
+                hypotheses.append(
+                    Hypothesis(
+                        run_id=run_id,
+                        statement=draft.statement,
+                        mechanism=draft.mechanism,
+                        confidence=draft.confidence,
+                        confidence_rationale=draft.confidence_rationale,
+                        status=HypothesisStatus(draft.status),
+                        supporting_evidence_ids=list(dict.fromkeys(draft.supporting_evidence_ids)),
+                        contradicting_evidence_ids=list(
+                            dict.fromkeys(draft.contradicting_evidence_ids)
+                        ),
+                        verification_steps=draft.verification_steps,
+                    )
+                )
+            except ValueError as exc:
+                logger.warning("Dropping hypothesis draft %r: %s", draft.statement, exc)
+                errors.append(exc)
+        if errors and not hypotheses:
+            raise errors[0]
+        return hypotheses

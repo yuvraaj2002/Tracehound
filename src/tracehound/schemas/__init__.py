@@ -35,6 +35,13 @@ from tracehound.schemas.integration import (
     IntegrationSummary,
     IntegrationUpdateRequest,
 )
+from tracehound.schemas.investigation import (
+    AgentName,
+    AgentRun,
+    IncidentDetail,
+    IncidentState,
+    InvestigationResult,
+)
 from tracehound.schemas.me import Me
 from tracehound.schemas.plan import BillingInterval, PlanList, PlanPrice, PlanSummary
 from tracehound.schemas.telemetry import Deploy, Edge, ServiceNode, Span, Topology
@@ -45,6 +52,8 @@ from tracehound.schemas.triage import (
 )
 
 __all__ = [
+    "AgentName",
+    "AgentRun",
     "ApiKeyCreateRequest",
     "ApiKeyCreated",
     "ApiKeyPage",
@@ -61,9 +70,11 @@ __all__ = [
     "HypothesisStatus",
     "IncidentAccepted",
     "IncidentCreateRequest",
+    "IncidentDetail",
     "IncidentListQuery",
     "IncidentPage",
     "IncidentRecord",
+    "IncidentState",
     "IncidentStats",
     "IncidentStatsPoint",
     "IncidentStatsQuery",
@@ -73,6 +84,7 @@ __all__ = [
     "IntegrationStatus",
     "IntegrationSummary",
     "IntegrationUpdateRequest",
+    "InvestigationResult",
     "InvestigationScope",
     "Me",
     "PlanList",

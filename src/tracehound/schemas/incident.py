@@ -2,7 +2,7 @@
 
 from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
-from typing import Self
+from typing import Literal, Self
 from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -93,6 +93,10 @@ class IncidentListQuery(IncidentStatsQuery):
 
     cursor: str | None = None
     limit: int = Field(default=20, ge=1, le=100)
+    # Optional filters. A repeated param matches any of its values: ?severity=high&severity=critical
+    severity: list[Severity] | None = None
+    state: list[Literal["CREATED", "RUNNING", "COMPLETED", "FAILED"]] | None = None
+    service_id: str | None = Field(default=None, min_length=1, max_length=128)
 
 
 class IncidentPage(BaseModel):

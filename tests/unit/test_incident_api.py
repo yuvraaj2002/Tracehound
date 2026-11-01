@@ -22,7 +22,9 @@ from tracehound.schemas import (
     IncidentRecord,
     IncidentStats,
     IncidentStatsQuery,
+    Severity,
 )
+from tracehound.worker import get_investigation_runner
 
 VALID = {
     "service_id": "checkout-api",
@@ -119,6 +121,16 @@ class MemoryIntegrations:
         return self.missing
 
 
+class RecordingRunner:
+    """Stand-in for `InvestigationRunner` that only remembers what was submitted."""
+
+    def __init__(self) -> None:
+        self.submitted: list[tuple[IncidentRecord, UUID]] = []
+
+    def submit(self, incident: IncidentRecord, user_id: UUID) -> None:
+        self.submitted.append((incident, user_id))
+
+
 class RejectingVerifier:
     def verify(self, token: str) -> User:
         raise InvalidToken(token)
@@ -128,6 +140,7 @@ def _app_with(
     helper: object,
     user_id: UUID | None = USER_ID,
     integrations: object | None = None,
+    runner: object | None = None,
 ) -> FastAPI:
     # The lifespan never runs because TestClient is not used as a context manager,
     # so no database pool is opened. `user_id=None` signs nobody in: every token is rejected.
@@ -136,6 +149,7 @@ def _app_with(
     app.dependency_overrides[get_integration_management] = lambda: (
         integrations or MemoryIntegrations()
     )
+    app.dependency_overrides[get_investigation_runner] = lambda: runner or RecordingRunner()
     if user_id is None:
         app.dependency_overrides[get_token_verifier] = RejectingVerifier
     else:
@@ -159,6 +173,16 @@ def test_accepts_valid_request(client: TestClient) -> None:
     body = response.json()
     assert body["status_url"] == f"/v1/incidents/{body['incident_id']}"
     assert body["run_id"]
+
+
+def test_accepted_incident_is_submitted_for_investigation(helper: MemoryHelper) -> None:
+    runner = RecordingRunner()
+    response = TestClient(_app_with(helper, runner=runner)).post("/v1/incidents", json=VALID)
+    assert response.status_code == 202
+    [(incident, user_id)] = runner.submitted
+    assert user_id == USER_ID
+    assert str(incident.id) == response.json()["incident_id"]
+    assert incident.service_id == VALID["service_id"]
 
 
 def test_rejects_incident_when_integrations_are_missing(helper: MemoryHelper) -> None:
@@ -239,10 +263,28 @@ def test_list_passes_range_and_paging_to_helper(client: TestClient, helper: Memo
     assert (query.cursor, query.limit) == ("abc", 5)
 
 
+def test_list_passes_filters_to_helper(client: TestClient, helper: MemoryHelper) -> None:
+    params = [
+        *STATS_RANGE.items(),
+        ("severity", "high"),
+        ("severity", "critical"),
+        ("state", "FAILED"),
+        ("service_id", "checkout-api"),
+    ]
+    assert client.get("/v1/incidents", params=params).status_code == 200
+    [(_, query)] = helper.list_calls
+    assert query.severity == [Severity.HIGH, Severity.CRITICAL]
+    assert query.state == ["FAILED"]
+    assert query.service_id == "checkout-api"
+
+
 @pytest.mark.parametrize(
     "params",
     [
         {},  # range is required
+        {**STATS_RANGE, "severity": "urgent"},
+        {**STATS_RANGE, "state": "completed"},  # states are upper case
+        {**STATS_RANGE, "service_id": ""},
         {"from": "2026-10-03T00:00:00Z", "to": "2026-10-01T00:00:00Z"},
         {**STATS_RANGE, "limit": "0"},
         {**STATS_RANGE, "limit": "101"},

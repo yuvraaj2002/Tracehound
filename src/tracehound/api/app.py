@@ -22,6 +22,8 @@ from tracehound.db import create_pool, database_url
 from tracehound.helpers.api_key_helper import api_key_hash_secret
 from tracehound.helpers.incident_helper import IncidentHelper
 from tracehound.helpers.integration_helper import integration_encryption_key
+from tracehound.helpers.investigation_helper import InvestigationStore
+from tracehound.worker import InvestigationRunner
 
 
 def _default_pool() -> ConnectionPool:
@@ -53,7 +55,15 @@ def create_app(pool_factory: Callable[[], ConnectionPool] = _default_pool) -> Fa
             app.state.api_key_hash_secret = api_key_hash_secret()
             app.state.integration_encryption_key = integration_encryption_key()
             app.state.token_verifier = TokenVerifier.for_project(supabase_url())
-            yield
+            store = InvestigationStore(pool)
+            # Runs interrupted by a restart would stay RUNNING forever otherwise.
+            store.fail_stale_runs()
+            runner = InvestigationRunner(store)
+            app.state.investigation_runner = runner
+            try:
+                yield
+            finally:
+                runner.shutdown()
 
     app = FastAPI(title="Tracehound", version="0.1.0", lifespan=lifespan)
     app.add_middleware(

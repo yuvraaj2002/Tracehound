@@ -135,10 +135,22 @@ class IncidentHelper:
     def list(self, user_id: UUID, query: IncidentListQuery) -> IncidentPage:
         """One page of `user_id`'s incidents created in ``[from, to)``, newest first.
 
+        `severity`, `state` and `service_id` narrow the page when given; the cursor stays valid
+        because filters only drop rows, never reorder them.
+
         Raises `InvalidCursor` when `query.cursor` is malformed.
         """
         sql = "SELECT * FROM incidents WHERE user_id = %s AND created_at >= %s AND created_at < %s"
         params: list[object] = [user_id, query.from_, query.to]
+        if query.severity:
+            sql += " AND severity = ANY(%s)"
+            params.append([severity.value for severity in query.severity])
+        if query.state:
+            sql += " AND state = ANY(%s)"
+            params.append(list(query.state))
+        if query.service_id:
+            sql += " AND service_id = %s"
+            params.append(query.service_id)
         if query.cursor:
             sql += " AND (created_at, id) < (%s, %s)"
             params.extend(decode_cursor(query.cursor))

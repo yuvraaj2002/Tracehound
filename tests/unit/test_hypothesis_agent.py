@@ -119,3 +119,11 @@ def test_refuted_without_contradicting_evidence_is_rejected(incident: IncidentRe
     llm = FakeLLM(_answer(["dep-002"], [], "refuted"))
     with pytest.raises(ValueError, match="contradicting"):
         HypothesisAgent(llm)(incident, FINDINGS, EVIDENCE)
+
+
+def test_an_invalid_draft_is_dropped_when_others_are_valid(incident: IncidentRecord) -> None:
+    valid = _answer(["dep-002"], [], "supported")
+    invalid = _answer(["log-008"], [], "refuted")
+    llm = FakeLLM(valid.model_copy(update={"hypotheses": valid.hypotheses + invalid.hypotheses}))
+    [hypothesis] = HypothesisAgent(llm)(incident, FINDINGS, EVIDENCE)
+    assert hypothesis.status is HypothesisStatus.SUPPORTED
