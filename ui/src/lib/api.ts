@@ -43,7 +43,7 @@ export type ApiKeyPage = { items: ApiKeySummary[], next_cursor: string | null }
 /** `key` is the raw secret. The API returns it once, here, and never again. */
 export type ApiKeyCreated = Omit<ApiKeySummary, 'last_used_at'> & { key: string }
 
-/** Stored kinds, one per specialist. Only Loki can be connected from the UI so far. */
+/** Stored kinds, one per specialist. */
 export type IntegrationKind = 'loki' | 'prometheus' | 'tempo' | 'github'
 export type IntegrationStatus = 'untested' | 'active' | 'failing'
 export type IntegrationAuth =
@@ -51,10 +51,11 @@ export type IntegrationAuth =
   | { type: 'basic', username: string, password: string }
   | { type: 'bearer', token: string }
 
-/** Non-secret Loki settings. `org_id` is sent as X-Scope-OrgID to multi-tenant Loki. */
-export type LokiConfig = { url: string, service_label?: string, org_id?: string | null }
+/** Non-secret backend settings. `org_id` is sent as X-Scope-OrgID to multi-tenant Loki; GitHub
+ *  takes a `repository` (owner/name) instead of a service label. */
+export type LokiConfig = { url: string, service_label?: string, org_id?: string | null, repository?: string }
 
-export type IntegrationCreate = { kind: 'loki', config: LokiConfig, auth: IntegrationAuth }
+export type IntegrationCreate = { kind: IntegrationKind, config: LokiConfig, auth: IntegrationAuth }
 
 /** Omitted fields keep their value; `org_id: null` clears it. Without `auth` the stored
  *  credential is kept; with it, the whole credential is replaced. */

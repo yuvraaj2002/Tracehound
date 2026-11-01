@@ -8,14 +8,13 @@ import '../auth.css'
 const formatDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 const message = (err: unknown, fallback: string) => err instanceof Error ? err.message : fallback
 
-/** One slot per specialist data source. Only Loki can be connected or edited here today; the
- *  others show a stored connection if one exists, and otherwise say they're coming. */
-type Source = { signal: string, agent: string, name: string, face: string, product: string, description: string, color: string, kind: IntegrationKind, connectable: boolean }
+/** One slot per specialist data source, each of which can be connected, edited or disconnected. */
+type Source = { signal: string, agent: string, name: string, face: string, product: string, description: string, color: string, kind: IntegrationKind }
 const sources: Source[] = [
-  { signal: 'Logs', name: 'Echo', face: '/agents/faces/logs.jpg', agent: 'Logs agent', product: 'Grafana Loki', description: 'Reads error bursts, stack traces and new messages from your services during the incident window.', color: 'var(--agent-logs)', kind: 'loki', connectable: true },
-  { signal: 'Metrics', name: 'Pulse', face: '/agents/faces/metrics.jpg', agent: 'Metrics agent', product: 'Prometheus', description: 'Compares latency, error rate and saturation against the baseline before the incident.', color: 'var(--agent-metrics)', kind: 'prometheus', connectable: false },
-  { signal: 'Traces', name: 'Tether', face: '/agents/faces/dependency.jpg', agent: 'Dependency agent', product: 'Grafana Tempo', description: 'Follows slow and failing spans across service boundaries to find where trouble starts.', color: 'var(--agent-dependency)', kind: 'tempo', connectable: false },
-  { signal: 'Deploys', name: 'Ledger', face: '/agents/faces/deploy.jpg', agent: 'Deploy agent', product: 'GitHub', description: 'Lines up releases and configuration changes with the moment the incident began.', color: 'var(--agent-deploy)', kind: 'github', connectable: false },
+  { signal: 'Logs', name: 'Echo', face: '/agents/faces/logs.jpg', agent: 'Logs agent', product: 'Grafana Loki', description: 'Reads error bursts, stack traces and new messages from your services during the incident window.', color: 'var(--agent-logs)', kind: 'loki' },
+  { signal: 'Metrics', name: 'Pulse', face: '/agents/faces/metrics.jpg', agent: 'Metrics agent', product: 'Prometheus', description: 'Compares latency, error rate and saturation against the baseline before the incident.', color: 'var(--agent-metrics)', kind: 'prometheus' },
+  { signal: 'Traces', name: 'Tether', face: '/agents/faces/dependency.jpg', agent: 'Dependency agent', product: 'Grafana Tempo', description: 'Follows slow and failing spans across service boundaries to find where trouble starts.', color: 'var(--agent-dependency)', kind: 'tempo' },
+  { signal: 'Deploys', name: 'Ledger', face: '/agents/faces/deploy.jpg', agent: 'Deploy agent', product: 'GitHub', description: 'Lines up releases and configuration changes with the moment the incident began.', color: 'var(--agent-deploy)', kind: 'github' },
 ]
 
 const statusLabel: Record<IntegrationStatus, string> = { untested: 'Not tested yet', active: 'Connected', failing: 'Failing' }
@@ -120,7 +119,7 @@ export default function Integrations() {
       <div className="toast-region" role="status" aria-live="polite">{status && <p className="toast">{status}</p>}</div>
 
       {disconnecting && <DisconnectDialog source={disconnecting.source} integration={disconnecting.integration} fallbackFocus={heading} onDeleted={() => onDeleted(disconnecting.source, disconnecting.integration)} onClose={() => setDisconnecting(null)} />}
-      {connecting && <ConnectLokiDialog source={connecting.source} integration={connecting.integration} fallbackFocus={heading} onSaved={(integration) => onSaved(connecting.source, integration, connecting.integration !== undefined)} onClose={() => setConnecting(null)} />}
+      {connecting && <ConnectDialog source={connecting.source} integration={connecting.integration} fallbackFocus={heading} onSaved={(integration) => onSaved(connecting.source, integration, connecting.integration !== undefined)} onClose={() => setConnecting(null)} />}
     </>
   )
 }
@@ -133,18 +132,17 @@ function AgentFace({ source }: { source: Source }) {
 function SourceRow({ source, integration, previewing, loading, unavailable, isNew, onConnect, onEdit, onDisconnect }: { source: Source, integration?: IntegrationSummary, previewing: boolean, loading: boolean, unavailable: boolean, isNew: boolean, onConnect: () => void, onEdit: (integration: IntegrationSummary) => void, onDisconnect: (integration: IntegrationSummary) => void }) {
   const titleId = `source-${source.signal.toLowerCase()}`
   const action = () => {
-    if (!source.connectable && !integration && !previewing) return <span className="source-soon">Coming soon</span>
     if (loading) return <span className="skeleton source-skeleton" aria-hidden="true" />
     if (integration) return <>
       <span className={`source-status is-${integration.status}`}><span aria-hidden="true" />{statusLabel[integration.status]}</span>
-      {source.connectable && <button type="button" className="button-quiet" onClick={() => onEdit(integration)} disabled={previewing} aria-label={`Edit ${source.product}`}>Edit</button>}
+      <button type="button" className="button-quiet" onClick={() => onEdit(integration)} disabled={previewing} aria-label={`Edit ${source.product}`}>Edit</button>
       <button type="button" className="button-quiet button-danger" onClick={() => onDisconnect(integration)} disabled={previewing} aria-label={`Disconnect ${source.product}`}>Disconnect</button>
     </>
     return <button type="button" className="button-primary" onClick={onConnect} disabled={unavailable} aria-describedby={titleId}>Connect <span aria-hidden="true">+</span></button>
   }
 
   return (
-    <li className={['source', source.connectable || integration || previewing ? null : 'is-planned', isNew ? 'is-new' : null].filter(Boolean).join(' ')} style={{ '--source-color': source.color } as CSSProperties} aria-labelledby={titleId}>
+    <li className={['source', isNew ? 'is-new' : null].filter(Boolean).join(' ')} style={{ '--source-color': source.color } as CSSProperties} aria-labelledby={titleId}>
       <div className="source-head">
         <AgentFace source={source} />
         <div className="source-identity">
@@ -202,16 +200,26 @@ function DisconnectDialog({ source, integration, fallbackFocus, onDeleted, onClo
 
 type AuthType = IntegrationAuth['type']
 const authOptions: { value: AuthType, label: string, hint: string }[] = [
-  { value: 'basic', label: 'Basic', hint: 'Grafana Cloud: your Loki user ID and an access policy token with logs:read.' },
-  { value: 'bearer', label: 'Bearer token', hint: 'For Loki behind a proxy or gateway that expects an Authorization: Bearer header.' },
-  { value: 'none', label: 'None', hint: 'Only for Loki on a private network that needs no credentials.' },
+  { value: 'basic', label: 'Basic', hint: 'Grafana Cloud: your user ID and an access policy token with read scope.' },
+  { value: 'bearer', label: 'Bearer token', hint: 'For a backend behind a proxy or gateway that expects an Authorization: Bearer header, or a GitHub token.' },
+  { value: 'none', label: 'None', hint: 'Only for a backend on a private network that needs no credentials.' },
 ]
+const urlHints: Record<IntegrationKind, { label: string, placeholder: string, hint: string }> = {
+  loki: { label: 'Loki URL', placeholder: 'https://logs-prod-012.grafana.net', hint: 'The base URL, without /loki/api/v1. In Grafana Cloud it’s on your stack’s Loki details page.' },
+  prometheus: { label: 'Prometheus URL', placeholder: 'https://prometheus-prod-24.grafana.net/api/prom', hint: 'The base URL of the Prometheus query API, without /api/v1.' },
+  tempo: { label: 'Tempo URL', placeholder: 'https://tempo-prod-04.grafana.net/tempo', hint: 'The base URL of Tempo’s query API, without /api.' },
+  github: { label: 'GitHub API URL', placeholder: 'https://api.github.com', hint: 'api.github.com, or your GitHub Enterprise API base URL.' },
+}
+const introFor = (source: Source) => source.kind === 'github' ? 'Tracehound reads releases and commits from this repository, read-only, when it investigates an incident.' : `Tracehound runs read-only queries against this ${source.product} when it investigates an incident.`
 
-/** Connects Loki, or edits an existing connection when `integration` is given. The stored token
+/** Connects a backend, or edits an existing connection when `integration` is given. The stored token
  *  is never sent back to the browser, so an edit leaves it alone unless a new one is typed. */
-function ConnectLokiDialog({ source, integration, fallbackFocus, onSaved, onClose }: { source: Source, integration?: IntegrationSummary, fallbackFocus: RefObject<HTMLElement | null>, onSaved: (integration: IntegrationSummary) => void, onClose: () => void }) {
+function ConnectDialog({ source, integration, fallbackFocus, onSaved, onClose }: { source: Source, integration?: IntegrationSummary, fallbackFocus: RefObject<HTMLElement | null>, onSaved: (integration: IntegrationSummary) => void, onClose: () => void }) {
   const stored = integration?.config
-  const [url, setUrl] = useState(stored?.url ?? '')
+  const [url, setUrl] = useState(stored?.url ?? (source.kind === 'github' ? 'https://api.github.com' : ''))
+  const [repository, setRepository] = useState(stored?.repository ?? '')
+  const isGithub = source.kind === 'github'
+  const copy = urlHints[source.kind]
   const [authType, setAuthType] = useState<AuthType>(stored?.auth_type ?? 'basic')
   const [username, setUsername] = useState(stored?.username ?? '')
   // The credential lives only in this state and is sent once, over the API, to be encrypted.
@@ -239,14 +247,18 @@ function ConnectLokiDialog({ source, integration, fallbackFocus, onSaved, onClos
   if (editing) {
     const config: IntegrationUpdate['config'] = {}
     if (trimmedUrl.replace(/\/+$/, '') !== stored.url) config.url = trimmedUrl
-    if (label !== stored.service_label) config.service_label = label
-    if (org !== stored.org_id) config.org_id = org
+    if (isGithub) { if (repository.trim() !== (stored.repository ?? '')) config.repository = repository.trim() }
+    else {
+      if (label !== stored.service_label) config.service_label = label
+      if (org !== stored.org_id) config.org_id = org
+    }
     if (Object.keys(config).length) changes.config = config
   }
   const auth: IntegrationAuth = authType === 'basic' ? { type: 'basic', username: username.trim(), password: secret } : authType === 'bearer' ? { type: 'bearer', token: secret } : { type: 'none' }
   if (editing && (!sameAuth || secret)) changes.auth = auth
   const unchanged = editing && !changes.config && !changes.auth
-  const complete = Boolean(trimmedUrl) && !urlProblem && !labelProblem && Boolean(authComplete) && !unchanged
+  const repositoryProblem = isGithub && repository.trim() && !/^[\w.-]+\/[\w.-]+$/.test(repository.trim()) ? 'Use the owner/name form, e.g. acme/checkout.' : null
+  const complete = Boolean(trimmedUrl) && (!isGithub || Boolean(repository.trim())) && !repositoryProblem && !urlProblem && !labelProblem && Boolean(authComplete) && !unchanged
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -256,9 +268,9 @@ function ConnectLokiDialog({ source, integration, fallbackFocus, onSaved, onClos
     try {
       onSaved(integration
         ? await updateIntegration(integration.id, changes)
-        : await createIntegration({ kind: 'loki', config: { url: trimmedUrl, service_label: label, org_id: org }, auth }))
+        : await createIntegration({ kind: source.kind, config: isGithub ? { url: trimmedUrl, repository: repository.trim() } : { url: trimmedUrl, service_label: label, org_id: org }, auth }))
     } catch (err) {
-      setError(err instanceof ApiError && err.status === 409 ? 'You already have a Loki connection. Reload the page to see it.'
+      setError(err instanceof ApiError && err.status === 409 ? `You already have a ${source.product} connection. Reload the page to see it.`
         : err instanceof ApiError && err.status === 404 ? 'This connection no longer exists. Reload the page to see your integrations.'
         : message(err, 'Could not save the connection.'))
       setSubmitting(false)
@@ -278,13 +290,13 @@ function ConnectLokiDialog({ source, integration, fallbackFocus, onSaved, onClos
               <h2 id="connect-dialog-title">{editing ? 'Edit' : 'Connect'} {source.product}</h2>
             </div>
           </div>
-          <p id="connect-dialog-intro">{editing ? 'Saving changes marks the connection as not tested, since the old result no longer applies.' : 'Tracehound runs read-only LogQL queries against this Loki when it investigates an incident.'}</p>
+          <p id="connect-dialog-intro">{editing ? 'Saving changes marks the connection as not tested, since the old result no longer applies.' : introFor(source)}</p>
         </div>
 
         <div className="connect-field">
-          <label htmlFor="loki-url">Loki URL</label>
-          <input id="loki-url" type="url" inputMode="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://logs-prod-012.grafana.net" autoComplete="off" spellCheck={false} aria-describedby="loki-url-hint" aria-invalid={urlProblem ? true : undefined} autoFocus />
-          <p id="loki-url-hint" className={urlProblem ? 'field-hint is-error' : 'field-hint'}>{urlProblem ?? 'The base URL, without /loki/api/v1. In Grafana Cloud it’s on your stack’s Loki details page.'}</p>
+          <label htmlFor="loki-url">{copy.label}</label>
+          <input id="loki-url" type="url" inputMode="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder={copy.placeholder} autoComplete="off" spellCheck={false} aria-describedby="loki-url-hint" aria-invalid={urlProblem ? true : undefined} autoFocus />
+          <p id="loki-url-hint" className={urlProblem ? 'field-hint is-error' : 'field-hint'}>{urlProblem ?? copy.hint}</p>
         </div>
 
         <fieldset className="connect-field">
@@ -314,7 +326,13 @@ function ConnectLokiDialog({ source, integration, fallbackFocus, onSaved, onClos
           </div>
         </div>}
 
-        <details className="connect-advanced">
+        {isGithub && <div className="connect-field">
+          <label htmlFor="github-repository">Repository</label>
+          <input id="github-repository" value={repository} onChange={(event) => setRepository(event.target.value)} placeholder="acme/checkout" autoComplete="off" spellCheck={false} aria-describedby="github-repository-hint" aria-invalid={repositoryProblem ? true : undefined} />
+          <p id="github-repository-hint" className={repositoryProblem ? 'field-hint is-error' : 'field-hint'}>{repositoryProblem ?? 'The repository whose releases and commits are lined up with each incident.'}</p>
+        </div>}
+
+        {!isGithub && <details className="connect-advanced">
           <summary>Advanced settings</summary>
           <div className="connect-row">
             <div className="connect-field">
@@ -328,7 +346,7 @@ function ConnectLokiDialog({ source, integration, fallbackFocus, onSaved, onClos
               <p id="loki-org-hint" className="field-hint">Sent as X-Scope-OrgID to multi-tenant Loki.</p>
             </div>
           </div>
-        </details>
+        </details>}
 
         {authType !== 'none' && <div className="connect-callout">
           <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.4" /><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" fill="none" stroke="currentColor" strokeWidth="1.4" /></svg>

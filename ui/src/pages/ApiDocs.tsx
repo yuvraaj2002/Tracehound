@@ -30,6 +30,7 @@ const responseFields: Param[] = [
 
 const errors = [
   { code: '401', title: 'Unauthorized', description: 'The API key is missing, malformed or revoked.' },
+  { code: '412', title: 'Integration not configured', description: <>The account is missing one of the four integrations (logs, metrics, dependency traces, deploys). <code>detail</code> names the ones to connect.</> },
   { code: '422', title: 'Unprocessable', description: <>The body failed validation. <code>detail</code> lists each field that is wrong.</> },
   { code: '500', title: 'Server error', description: 'Tracehound could not store the incident. Retry with backoff.' },
 ]
@@ -81,6 +82,9 @@ const responses = {
 }`,
   '401': `{
   "detail": "Missing or invalid access token."
+}`,
+  '412': `{
+  "detail": "Integration is not configured for: metrics, deploys."
 }`,
   '422': `{
   "detail": [
