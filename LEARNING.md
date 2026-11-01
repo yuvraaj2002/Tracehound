@@ -8,6 +8,9 @@ Each entry says what the idea is, why we use it, and where it shows up in the co
 - [Storing money in minor units](#storing-money-in-minor-units)
 - [Supabase access and refresh tokens](#supabase-access-and-refresh-tokens)
 - [Supporting many LLM providers (BYOK)](#supporting-many-llm-providers-byok)
+- [The LGTM stack and the otel-lgtm image](#the-lgtm-stack-and-the-otel-lgtm-image)
+- [The OpenTelemetry Collector](#the-opentelemetry-collector)
+- [Database connection pool exhaustion](#database-connection-pool-exhaustion)
 
 ---
 
@@ -108,3 +111,81 @@ validation and retries.
 `src/tracehound/agents/inference.py`, with `OllamaLLM` as its only implementation. The worker
 picks the model in `src/tracehound/worker/runner.py`. BYOK means adding implementations (or
 one LiteLLM-backed one) and choosing among them per user instead of from `OLLAMA_MODEL`.
+
+---
+
+## The LGTM stack and the otel-lgtm image
+
+*Came up in: planning live integration tests (`docs/live-integration-testing.md`)*
+
+LGTM is Grafana Labs' name for its open-source observability stack:
+
+- **L**oki stores logs.
+- **G**rafana is the UI for dashboards and queries.
+- **T**empo stores traces.
+- **M**imir stores metrics. It is a scalable, Prometheus-compatible store, queried with PromQL.
+
+`grafana/otel-lgtm` is a single Docker image that runs a small version of this stack for
+development, plus an OpenTelemetry Collector in front. An app sends all its telemetry to one
+OTLP endpoint (port 4317 or 4318), and the collector sends logs to Loki, traces to Tempo and
+metrics to the metrics store. In this image the metrics store is plain Prometheus, the lighter
+option for local use.
+
+It is meant for demos and testing only: one container, no high availability, and data kept only
+as long as the container runs.
+
+**In our stack.** It stands in for a customer's real backends, so Tracehound's Loki, Tempo and
+Prometheus adapters can be tested against real data on `localhost`.
+
+---
+
+## The OpenTelemetry Collector
+
+*Came up in: planning live integration tests with the `grafana/otel-lgtm` image*
+
+OpenTelemetry (OTel) is a vendor-neutral standard for producing telemetry (logs, metrics and
+traces), with SDKs for most languages and one wire protocol, OTLP. The **Collector** is a
+separate program that sits between apps and storage backends and forwards telemetry.
+
+It is a pipeline built from three kinds of parts, set up in a YAML config:
+
+- **Receivers** take data in, e.g. OTLP on ports 4317 (gRPC) and 4318 (HTTP), or by scraping
+  Prometheus endpoints.
+- **Processors** change data on the way through: batching, adding labels such as
+  `deployment.environment`, dropping noisy data, sampling traces, removing secrets.
+- **Exporters** send data out, e.g. logs to Loki, traces to Tempo, metrics to Prometheus.
+  The same data can go to more than one backend.
+
+**Why not send straight to each backend?** Apps then only know one address and one protocol.
+Switching vendors, or sending to two at once, becomes a Collector config change, not a code
+change in every service. The Collector also buffers and retries if a backend is down.
+
+**In our stack.** Tracehound never talks to the Collector. It only reads from Loki, Tempo and
+Prometheus. The Collector matters for the test setup: the demo checkout app sends everything to
+it, and it fills the three backends that Tracehound then queries.
+
+---
+
+## Database connection pool exhaustion
+
+*Came up in: the dummy `checkout-api` in `simulation/checkout_api/app.py`*
+
+Opening a database connection is slow, so apps keep a **pool** of open connections and lend
+them out: a request borrows one, runs its queries and gives it back. The pool has a maximum size
+and a timeout for how long a request will wait for a free connection.
+
+How many connections are busy at once is roughly *requests per second × seconds each request
+holds a connection* (Little's law). At 40 req/s × 0.2s, about 8 are busy on average.
+
+- A pool of 20 handles up to 20 / 0.2 = 100 req/s, so 40 req/s is easy.
+- A pool of 5 handles only 5 / 0.2 = 25 req/s. At 40 req/s, about 15 more requests arrive each
+  second than can be served, so the queue keeps growing. Once a request has waited longer than
+  the timeout (2s) it gives up, and the app returns 503.
+
+The traffic must be **open loop** (sent on a fixed schedule, like real users) for this to show.
+If each client waits for its answer before sending the next request, a slow server just slows
+the clients down, and the queue never builds.
+
+What it looks like: the database itself is fine (low CPU, few connections), the app's request
+rate is steady, but errors and latency jump right after the pool shrinks. This pattern is how
+Tracehound should tell it apart from "the database is overloaded" or "traffic spiked".

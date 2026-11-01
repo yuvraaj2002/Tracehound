@@ -1,0 +1,76 @@
+# Local test setup for Tracehound's live integrations. See docs/live-integration-testing.md.
+#
+#   docker compose -f simulation/docker-compose.yml up -d --build   # start
+#   docker compose -f simulation/docker-compose.yml down            # stop (data is discarded)
+
+services:
+  lgtm:
+    # One container running the OpenTelemetry Collector, Loki, Tempo, Prometheus and Grafana.
+    image: grafana/otel-lgtm:0.38.1
+    container_name: tracehound-lgtm
+    # Loki, Tempo and Prometheus are not published to the host: Tracehound reaches them only
+    # through the auth-proxy below. The app sends telemetry to lgtm:4318 on the compose network.
+    ports:
+      - "3000:3000" # Grafana UI (login admin / admin)
+    restart: unless-stopped
+
+  auth-proxy:
+    # nginx with basic auth in front of the backends, one login per backend like Grafana Cloud.
+    # Credentials are listed in nginx/nginx.conf.
+    image: nginx:1.27-alpine
+    container_name: tracehound-auth-proxy
+    depends_on:
+      - lgtm
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/htpasswd.loki:/etc/nginx/htpasswd.loki:ro
+      - ./nginx/htpasswd.tempo:/etc/nginx/htpasswd.tempo:ro
+      - ./nginx/htpasswd.prometheus:/etc/nginx/htpasswd.prometheus:ro
+    ports:
+      - "3100:3100" # Loki: Tracehound reads logs
+      - "3200:3200" # Tempo: Tracehound reads traces
+      - "9090:9090" # Prometheus: Tracehound reads metrics
+    restart: unless-stopped
+
+  orders-db:
+    image: postgres:17-alpine
+    container_name: tracehound-orders-db
+    environment:
+      POSTGRES_USER: checkout
+      POSTGRES_PASSWORD: checkout
+      POSTGRES_DB: orders
+    ports:
+      - "5433:5432" # 5433 on the host, so it doesn't clash with a local Postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U checkout -d orders"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+    restart: unless-stopped
+
+  checkout-api:
+    build: ./checkout_api
+    container_name: tracehound-checkout-api
+    depends_on:
+      orders-db:
+        condition: service_healthy
+      lgtm:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql+psycopg://checkout:checkout@orders-db:5432/orders
+      APP_VERSION: "1.13.2"
+      DB_POOL_SIZE: "20"
+      DB_POOL_TIMEOUT_S: "30"
+      # OpenTelemetry: send all three signals to the collector inside the lgtm container.
+      OTEL_SERVICE_NAME: checkout-api
+      OTEL_RESOURCE_ATTRIBUTES: service.version=1.13.2,deployment.environment=local
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://lgtm:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_LOGS_EXPORTER: otlp
+      OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: "true"
+      OTEL_METRIC_EXPORT_INTERVAL: "5000"
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
