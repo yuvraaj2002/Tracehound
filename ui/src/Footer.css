@@ -1,0 +1,28 @@
+/* Footer: the one dark surface on the page, in the brand primary (ink blue). Text is
+   white at reduced opacity (all pairs stay above 4.5:1 on #284B63). */
+.site-footer { --footer-text: rgb(255 255 255 / .86); --footer-muted: rgb(255 255 255 / .72); --footer-line: rgb(255 255 255 / .2); margin-top: 80px; padding: 72px max(4.5%, calc((100% - 1376px)/2)) 0; background: var(--color-primary); color: var(--footer-text); }
+.site-footer a:focus-visible { outline-color: var(--color-white); }
+.site-footer-inner { display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr)); gap: 40px 56px; }
+.site-footer .brand { font-size: 23px; color: var(--color-white); }
+.site-footer .brand-symbol { width: 32px; height: 32px; filter: brightness(0) invert(1); }
+.site-footer-brand p { max-width: 320px; margin: 14px 0 0; font-size: var(--text-sm); line-height: var(--leading-relaxed); color: var(--footer-muted); }
+
+.site-footer-column h2 { margin: 0 0 14px; font-size: var(--text-2xs); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--footer-muted); }
+.site-footer-column ul { list-style: none; margin: 0; padding: 0; }
+.site-footer-column a { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; font-size: var(--text-base); color: var(--footer-text); transition: color .2s; }
+.site-footer-column a:hover { color: var(--color-white); text-decoration: underline; text-underline-offset: 5px; }
+
+.site-footer-base { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 64px; padding: 22px 0 28px; border-top: 1px solid var(--footer-line); font-size: var(--text-xs); color: var(--footer-muted); }
+.site-footer-base p { margin: 0; }
+.site-footer-base a { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; color: var(--footer-text); }
+.site-footer-base a:hover { color: var(--color-white); text-decoration: underline; text-underline-offset: 5px; }
+
+@media (max-width: 900px) {
+  .site-footer-inner { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .site-footer-brand { grid-column: 1 / -1; }
+}
+@media (max-width: 600px) {
+  .site-footer { margin-top: 48px; padding-top: 48px; }
+  .site-footer-inner { grid-template-columns: 1fr 1fr; gap: 32px 24px; }
+  .site-footer-base { margin-top: 40px; }
+}

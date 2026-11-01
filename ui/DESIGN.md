@@ -33,6 +33,10 @@ and 5.26:1 against white respectively. All six agent text colors meet 4.5:1
 against white. Pale watermarks and dividers are decorative, not readable text.
 Do not introduce colored section backgrounds, neon accents, or large gradients.
 
+The one exception is the landing page footer (revised by the product owner, 31 October
+2026): a solid Primary (#284B63) band with white text, never a gradient. Footer text is white at
+86% and 72% opacity, which stays above 4.5:1 on Primary.
+
 ## Layout and navigation
 
 The agents are the dominant visual element. Keep the product introduction

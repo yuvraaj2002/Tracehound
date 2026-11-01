@@ -5,6 +5,7 @@ import InvestigationFlow from './InvestigationFlow'
 import AgentThread from './AgentThread'
 import Pricing from './Pricing'
 import SupportedIntegrations from './SupportedIntegrations'
+import Footer from './Footer'
 import { useSmoothScroll } from './useSmoothScroll'
 import { useGetStarted } from './auth/useGetStarted'
 
@@ -16,8 +17,6 @@ const agents = [
   { id: 'deploy', name: 'Ledger', specialty: 'Deploy', image: '/agents/deploy.png', alt: 'Yellow investigator inspecting infrastructure and changes', role: 'Remembers what changed.', description: 'Lines up releases and configuration changes with the incident timeline. Helps the team test whether a recent change explains the failure.', color: 'var(--agent-deploy)', signal: 'Releases & configuration changes', output: 'Changes worth investigating' },
   { id: 'hypothesis', name: 'Sage', specialty: 'Hypothesis', image: '/agents/hypothesis.jpg', alt: 'Purple investigator piecing together possible explanations', role: 'Connects evidence to answers.', description: 'Weighs competing explanations against the findings. Ranks likely root causes with supporting evidence and uncertainty made explicit.', color: 'var(--agent-hypothesis)', signal: 'Findings from every specialist', output: 'Ranked, evidence-backed hypotheses' },
 ]
-
-const year = new Date().getFullYear()
 
 function App() {
   useSmoothScroll()
@@ -90,7 +89,7 @@ function App() {
         <SupportedIntegrations />
         <Pricing />
       </main>
-      <footer className="footer"><a className="brand" href="#" aria-label="Tracehound home"><img className="brand-symbol" src="/tracehound-mark.svg" alt="" width="32" height="32" /><span>Tracehound</span></a><p>Follow the evidence.</p><div className="footer-links"><a href="https://www.linkedin.com/in/yuvraaj-singh/" target="_blank" rel="noopener noreferrer">Meet the developer <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></a><span>© {year} Tracehound</span></div></footer>
+      <Footer />
     </>
   )
 }
