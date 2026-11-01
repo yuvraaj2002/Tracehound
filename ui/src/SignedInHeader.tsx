@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from './auth/context'
+import { useTheme } from './lib/theme'
 
-/** The header every signed-in page shares: the wordmark and the avatar menu. */
-export default function SignedInHeader() {
+/** The header every signed-in page shares: the wordmark, optional page actions, the theme switch and the avatar menu. */
+export default function SignedInHeader({ actions }: { actions?: ReactNode }) {
   const { user, signOut } = useAuth()
   const meta = (user?.user_metadata ?? {}) as { avatar_url?: string, picture?: string, full_name?: string, name?: string, user_name?: string }
   const name = meta.full_name ?? meta.name ?? meta.user_name ?? user?.email ?? 'Signed in'
@@ -12,8 +13,24 @@ export default function SignedInHeader() {
   return (
     <header className="nav">
       <Link className="brand" to="/" aria-label="Tracehound home"><img className="brand-symbol" src="/tracehound-mark.svg" alt="" width="40" height="40" /><span>Tracehound</span></Link>
-      <AccountMenu name={name} email={user?.email} avatar={avatar} onSignOut={() => void signOut()} />
+      <div className="nav-actions">
+        {actions}
+        <ThemeToggle />
+        <AccountMenu name={name} email={user?.email} avatar={avatar} onSignOut={() => void signOut()} />
+      </div>
     </header>
+  )
+}
+
+function ThemeToggle() {
+  const { theme, toggle } = useTheme()
+  const isBlack = theme === 'black'
+  return (
+    <button type="button" className="theme-toggle" aria-pressed={isBlack} aria-label="Black theme" title={isBlack ? 'Switch to light theme' : 'Switch to black theme'} onClick={toggle}>
+      {isBlack
+        ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>
+        : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg>}
+    </button>
   )
 }
 

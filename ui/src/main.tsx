@@ -13,11 +13,13 @@ import ApiKeys from './pages/ApiKeys.tsx'
 import Integrations from './pages/Integrations.tsx'
 import ApiDocs from './pages/ApiDocs.tsx'
 import { SmoothScroll } from './useSmoothScroll'
+import ThemeProvider from './ThemeProvider.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <SmoothScroll />
+      <ThemeProvider>
       <AuthProvider>
         <Routes>
           <Route index element={<App />} />
@@ -31,6 +33,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   </StrictMode>,
 )

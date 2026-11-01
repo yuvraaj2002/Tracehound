@@ -15,6 +15,7 @@
   --agent-dependency: #286f69;
   --agent-deploy: var(--color-tertiary);
   --agent-hypothesis: var(--color-secondary);
+  --color-bg: var(--color-white);
   /* Type system: Switzer for everything, Geist Mono for code, Cabinet Grotesk
      only for the wordmark. Use these tokens instead of raw values. */
   --font-sans: 'Switzer', 'Helvetica Neue', Helvetica, Arial, sans-serif;
@@ -50,6 +51,29 @@
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
+/* Black theme, opt-in per page via data-theme="black" (only the signed-in home today).
+   Brand hues keep their identity but are lifted so they read on near-black.
+   --color-white stays the surface token, so it becomes the card color here. */
+[data-theme='black'] {
+  color-scheme: dark;
+  --color-bg: #0a0a0b;
+  --color-white: #141518;
+  --color-soft: #1d1f23;
+  --color-line: #2a2d32;
+  --color-ink: #ececee;
+  --color-muted: #9b9ea5;
+  --color-primary: #8db4d0;
+  --color-secondary: #c2a5c1;
+  --color-tertiary: #d6a96c;
+  --agent-logs: #e8876f;
+  --agent-metrics: #8cbf93;
+  --agent-dependency: #6fc1b8;
+  background: var(--color-bg);
+  color: var(--color-ink);
+}
+[data-theme='black'] .brand-symbol { filter: brightness(0) invert(.88); }
+/* Filled controls sit on the lifted brand colors, so their text flips to the dark page color. */
+[data-theme='black'] .button-primary, [data-theme='black'] .reveal-badge { color: var(--color-bg); }
 *, *::before, *::after { box-sizing: border-box; }
 html { scroll-behavior: smooth; scroll-padding-top: 24px; }
 html.lenis { scroll-behavior: auto; }
