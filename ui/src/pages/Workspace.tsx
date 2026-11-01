@@ -1,6 +1,6 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { Link } from 'react-router'
-import { getIncidentStats, listIncidents, type Incident, type IncidentPage, type IncidentStats, type Severity } from '../lib/api'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Link, useNavigate } from 'react-router'
+import { getIncidentStats, listIncidents, type Incident, type IncidentPage, type IncidentStats, type IncidentFilters, type IncidentState, type Severity } from '../lib/api'
 import SignedInHeader from '../SignedInHeader'
 import '../auth.css'
 
@@ -161,7 +161,40 @@ function BarList({ rows, total, empty }: { rows: { key: string, label: string, c
   )
 }
 
+const states: IncidentState[] = ['CREATED', 'RUNNING', 'COMPLETED', 'FAILED']
+
 function Runs({ period }: { period: Period }) {
+  const [severity, setSeverity] = useState<Severity | ''>('')
+  const [state, setState] = useState<IncidentState | ''>('')
+  const [service, setService] = useState('')
+  const [serviceQuery, setServiceQuery] = useState('')
+  // Wait for a pause in typing before asking for a service, instead of one request per keystroke.
+  useEffect(() => {
+    const timer = setTimeout(() => setServiceQuery(service.trim()), 300)
+    return () => clearTimeout(timer)
+  }, [service])
+  const filters = useMemo<IncidentFilters>(() => ({ ...(severity && { severity: [severity] }), ...(state && { state: [state] }), ...(serviceQuery && { service_id: serviceQuery }) }), [severity, state, serviceQuery])
+  const active = Boolean(severity || state || service.trim())
+
+  return (
+    <section className="incident-list" aria-labelledby="incident-list-title">
+      <div className="runs-head">
+        <h2 id="incident-list-title">Incident runs</h2>
+        <p>Newest first</p>
+      </div>
+      <div className="run-filters" role="group" aria-label="Filter incidents">
+        <label><span>Severity</span><select value={severity} onChange={(event) => setSeverity(event.target.value as Severity | '')}><option value="">All</option>{severities.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+        <label><span>State</span><select value={state} onChange={(event) => setState(event.target.value as IncidentState | '')}><option value="">All</option>{states.map((value) => <option key={value} value={value}>{value.toLowerCase()}</option>)}</select></label>
+        <label><span>Service</span><input type="search" value={service} placeholder="Any service" spellCheck={false} onChange={(event) => setService(event.target.value)} /></label>
+        {active && <button type="button" className="button-quiet" onClick={() => { setSeverity(''); setState(''); setService('') }}>Clear filters</button>}
+      </div>
+      {/* Keyed on the filters so a change starts again from page 1. */}
+      <RunsTable key={JSON.stringify(filters)} period={period} filters={filters} filtered={active} />
+    </section>
+  )
+}
+
+function RunsTable({ period, filters, filtered }: { period: Period, filters: IncidentFilters, filtered: boolean }) {
   // cursors[i] fetches page i; page 0 has no cursor.
   const [cursors, setCursors] = useState<(string | null)[]>([null])
   const [page, setPage] = useState(0)
@@ -169,43 +202,47 @@ function Runs({ period }: { period: Period }) {
   const [attempt, setAttempt] = useState(0)
   useEffect(() => {
     let active = true
-    listIncidents(period.from, period.to, cursors[page]).then(
+    listIncidents(period.from, period.to, cursors[page], 10, filters).then(
       (data) => { if (active) setLoad({ status: 'ready', data }) },
       (err: unknown) => { if (active) setLoad({ status: 'error', message: errorText(err, 'Could not load incidents.') }) },
     )
     return () => { active = false }
-  }, [period, cursors, page, attempt])
+  }, [period, filters, cursors, page, attempt])
 
   const go = (next: number) => { setLoad({ status: 'loading' }); setPage(next) }
   const nextCursor = load.status === 'ready' ? load.data.next_cursor : null
 
   return (
-    <section className="incident-list" aria-labelledby="incident-list-title" aria-busy={load.status === 'loading'}>
-      <div className="runs-head">
-        <h2 id="incident-list-title">Incident runs</h2>
-        <p>Newest first{page > 0 && ` · page ${page + 1}`}</p>
-      </div>
+    <div aria-busy={load.status === 'loading'}>
+      {page > 0 && <p className="runs-page">Page {page + 1}</p>}
       {load.status === 'loading' && <p className="list-state" role="status">Loading incidents<span className="status-dots" aria-hidden="true"><span /><span /><span /></span></p>}
       {load.status === 'error' && <div className="list-state" role="alert"><p className="form-error">{load.message}</p><button type="button" className="button-quiet" onClick={() => { setLoad({ status: 'loading' }); setAttempt((n) => n + 1) }}>Retry</button></div>}
-      {load.status === 'ready' && load.data.items.length === 0 && <p className="list-state">No incidents in this range. Runs your tools open will show up here.</p>}
-      {load.status === 'ready' && load.data.items.length > 0 && <ul>{load.data.items.map((incident) => <IncidentRow key={incident.id} incident={incident} />)}</ul>}
+      {load.status === 'ready' && load.data.items.length === 0 && <p className="list-state">{filtered ? 'No incidents match these filters in this range.' : 'No incidents in this range. Runs your tools open will show up here.'}</p>}
+      {load.status === 'ready' && load.data.items.length > 0 && <div className="incident-table-wrap"><table className="incident-table">
+        <thead><tr><th scope="col">Service</th><th scope="col">Symptom</th><th scope="col">Severity</th><th scope="col">State</th><th scope="col">Opened</th><th scope="col">Window</th></tr></thead>
+        <tbody>{load.data.items.map((incident) => <IncidentRow key={incident.id} incident={incident} />)}</tbody>
+      </table></div>}
       {(page > 0 || nextCursor) && <nav className="pager" aria-label="Incident pages">
         <button type="button" className="button-quiet" disabled={page === 0 || load.status === 'loading'} onClick={() => go(page - 1)}><span aria-hidden="true">←</span> Newer</button>
         <button type="button" className="button-quiet" disabled={!nextCursor || load.status === 'loading'} onClick={() => { if (!nextCursor) return; setCursors((list) => [...list.slice(0, page + 1), nextCursor]); go(page + 1) }}>Older <span aria-hidden="true">→</span></button>
       </nav>}
-    </section>
+    </div>
   )
 }
 
 function IncidentRow({ incident }: { incident: Incident }) {
+  const navigate = useNavigate()
+  const href = `/app/incidents/${incident.id}`
+  const seconds = (Date.parse(incident.window_end) - Date.parse(incident.window_start)) / 1000
+  // The whole row opens the incident; the service cell holds the real link for keyboard and screen readers.
   return (
-    <li className="incident">
-      <div className="incident-top">
-        <span className="incident-service">{incident.service_id}</span>
-        <span className="incident-severity" style={{ color: severityColor[incident.severity] }}><span className="agent-dot" style={{ background: severityColor[incident.severity] }} />{incident.severity}</span>
-      </div>
-      <p className="incident-symptom">{incident.symptom}</p>
-      <p className="incident-meta"><span>{incident.state}</span><span>Opened {formatTime(incident.created_at)}</span><span>Window {formatTime(incident.window_start)} → {formatTime(incident.window_end)}</span>{incident.trace_id && <span>trace {incident.trace_id}</span>}</p>
-    </li>
+    <tr className="incident-row" onClick={(event) => { if (!(event.target as Element).closest('a')) navigate(href) }}>
+      <td className="incident-service"><Link to={href}>{incident.service_id}</Link></td>
+      <td className="incident-symptom">{incident.symptom}</td>
+      <td><span className="incident-severity" style={{ color: severityColor[incident.severity] }}><span className="agent-dot" style={{ background: severityColor[incident.severity] }} />{incident.severity}</span></td>
+      <td><span className={`state-pill is-${incident.state.toLowerCase()}`}>{incident.state.toLowerCase()}</span></td>
+      <td className="incident-time">{formatTime(incident.created_at)}</td>
+      <td className="incident-time" title={`${formatTime(incident.window_start)} → ${formatTime(incident.window_end)}`}>{formatDuration(seconds)}</td>
+    </tr>
   )
 }
