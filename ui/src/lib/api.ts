@@ -127,8 +127,16 @@ async function errorMessage(response: Response) {
 export type IncidentPage = { items: Incident[], next_cursor: string | null }
 
 /** One page of incidents created in `[from, to)`, newest first. Times are ISO-8601 with a timezone. */
-export const listIncidents = (from: string, to: string, cursor?: string | null, limit = 10) =>
-  apiFetch<IncidentPage>(`/v1/incidents?${new URLSearchParams({ from, to, limit: String(limit), ...(cursor && { cursor }) })}`)
+export type IncidentFilters = { severity?: Severity[], state?: IncidentState[], service_id?: string }
+
+export const listIncidents = (from: string, to: string, cursor?: string | null, limit = 10, filters: IncidentFilters = {}) => {
+  const params = new URLSearchParams({ from, to, limit: String(limit), ...(cursor && { cursor }) })
+  // Repeated params match any of their values.
+  filters.severity?.forEach((value) => params.append('severity', value))
+  filters.state?.forEach((value) => params.append('state', value))
+  if (filters.service_id) params.set('service_id', filters.service_id)
+  return apiFetch<IncidentPage>(`/v1/incidents?${params}`)
+}
 
 export const createIncident = (incident: IncidentCreate) => apiFetch<IncidentAccepted>('/v1/incidents', { method: 'POST', body: JSON.stringify(incident) })
 
@@ -190,3 +198,74 @@ export type Me = { id: string, email: string | null, name: string | null, avatar
 
 /** Resolves when the API accepts the session; a 401 signs out locally and rejects. */
 export const getMe = () => apiFetch<Me>('/v1/me')
+
+export type IncidentState = 'CREATED' | 'RUNNING' | 'COMPLETED' | 'FAILED'
+export type Specialist = 'logs' | 'metrics' | 'deploy' | 'dependency'
+export type AgentName = 'triage' | Specialist | 'hypothesis'
+
+export type SpecialistTask = { specialist: Specialist, question: string, services: string[] }
+
+/** Triage's plan: which services and windows to look at, and one task per dispatched specialist. */
+export type InvestigationScope = {
+  alert_service: string
+  services: string[]
+  symptom_window_start: string
+  symptom_window_end: string
+  change_window_start: string
+  tasks: SpecialistTask[]
+  rationale: string
+}
+
+export type Finding = { specialist: Specialist, claim: string, evidence_ids: string[] }
+
+export type EvidenceSource = 'log' | 'metric' | 'trace' | 'deploy'
+export type Evidence = {
+  id: string
+  run_id: string
+  source_type: EvidenceSource
+  source_locator: string
+  service: string
+  event_time: string
+  collected_at: string
+  payload_hash: string
+  excerpt: string
+  metadata: Record<string, unknown>
+}
+
+export type ConfidenceBand = 'low' | 'medium' | 'high'
+export type HypothesisStatus = 'proposed' | 'supported' | 'refuted' | 'inconclusive'
+export type VerificationStep = { check: string, expected_if_true: string }
+export type Hypothesis = {
+  id: string
+  run_id: string
+  statement: string
+  mechanism: string
+  confidence: ConfidenceBand
+  confidence_rationale: string
+  status: HypothesisStatus
+  supporting_evidence_ids: string[]
+  contradicting_evidence_ids: string[]
+  verification_steps: VerificationStep[]
+}
+
+export type AgentRun = { status: 'running' | 'completed' | 'failed', started_at: string | null, finished_at: string | null, error: string | null }
+
+export type InvestigationResult = {
+  incident_id: string
+  run_id: string
+  scope: InvestigationScope | null
+  findings: Finding[]
+  /** Sorted by event_time. */
+  evidence: Evidence[]
+  hypotheses: Hypothesis[]
+  agent_runs: Partial<Record<AgentName, AgentRun>>
+  error: string | null
+  started_at: string | null
+  finished_at: string | null
+}
+
+/** `result` is null until an investigation has been stored for the incident. */
+export type IncidentDetail = { incident: Incident, result: InvestigationResult | null }
+
+/** One incident with its stored investigation; rejects with ApiError 404 when it doesn't exist. */
+export const getIncident = (id: string) => apiFetch<IncidentDetail>(`/v1/incidents/${encodeURIComponent(id)}`)

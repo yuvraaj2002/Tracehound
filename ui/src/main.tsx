@@ -9,6 +9,7 @@ import SignIn from './pages/SignIn.tsx'
 import AuthCallback from './pages/AuthCallback.tsx'
 import Home from './pages/Home.tsx'
 import Workspace from './pages/Workspace.tsx'
+import IncidentDetail from './pages/IncidentDetail.tsx'
 import ApiKeys from './pages/ApiKeys.tsx'
 import Integrations from './pages/Integrations.tsx'
 import ApiDocs from './pages/ApiDocs.tsx'
@@ -27,6 +28,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="auth/callback" element={<AuthCallback />} />
           <Route path="app" element={<RequireAuth><Home /></RequireAuth>} />
           <Route path="app/incidents" element={<RequireAuth><Workspace /></RequireAuth>} />
+          <Route path="app/incidents/:incidentId" element={<RequireAuth><IncidentDetail /></RequireAuth>} />
           <Route path="app/api-keys" element={<RequireAuth><ApiKeys /></RequireAuth>} />
           <Route path="app/integrations" element={<RequireAuth><Integrations /></RequireAuth>} />
           <Route path="app/docs" element={<RequireAuth><ApiDocs /></RequireAuth>} />
