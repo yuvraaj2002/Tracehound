@@ -6,7 +6,11 @@ from typing import Annotated
 import psycopg
 from fastapi import APIRouter, HTTPException, Query, status
 
-from tracehound.api.dependencies import CurrentUserDep, IncidentHelperDep
+from tracehound.api.dependencies import (
+    CurrentUserDep,
+    IncidentHelperDep,
+    IntegrationManagementDep,
+)
 from tracehound.helpers.pagination import InvalidCursor
 from tracehound.schemas import (
     IncidentAccepted,
@@ -24,8 +28,24 @@ router = APIRouter(prefix="/v1/incidents", tags=["incidents"])
 
 @router.post("", status_code=status.HTTP_202_ACCEPTED)
 def create_incident(
-    payload: IncidentCreateRequest, user: CurrentUserDep, helper: IncidentHelperDep
+    payload: IncidentCreateRequest,
+    user: CurrentUserDep,
+    helper: IncidentHelperDep,
+    integrations: IntegrationManagementDep,
 ) -> IncidentAccepted:
+    try:
+        missing = integrations.missing_signals(user.user_id)
+    except psycopg.Error as exc:
+        logger.exception("Failed to check integrations for service %s", payload.service_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not check the integrations.",
+        ) from exc
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_412_PRECONDITION_FAILED,
+            detail=f"Integration is not configured for: {', '.join(missing)}.",
+        )
     try:
         return helper.create(user.user_id, payload)
     except psycopg.Error as exc:

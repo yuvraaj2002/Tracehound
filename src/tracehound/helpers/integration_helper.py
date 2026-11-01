@@ -4,6 +4,7 @@ import base64
 import binascii
 import os
 import secrets
+from collections.abc import Sequence
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -18,7 +19,12 @@ from tracehound.schemas import (
     IntegrationSummary,
     IntegrationUpdateRequest,
 )
-from tracehound.schemas.integration import BasicAuth, BearerAuth, IntegrationAuth
+from tracehound.schemas.integration import (
+    BasicAuth,
+    BearerAuth,
+    IntegrationAuth,
+    IntegrationKind,
+)
 
 
 def integration_encryption_key() -> bytes:
@@ -33,6 +39,15 @@ def integration_encryption_key() -> bytes:
     if len(key) != 32:
         raise RuntimeError("INTEGRATION_ENCRYPTION_KEY must decode to 32 bytes.")
     return key
+
+
+# The telemetry signals an investigation needs, each served by one integration kind.
+REQUIRED_SIGNALS: dict[str, IntegrationKind] = {
+    "logs": "loki",
+    "metrics": "prometheus",
+    "dependency traces": "tempo",
+    "deploys": "github",
+}
 
 
 class IntegrationExists(Exception):
@@ -141,6 +156,15 @@ class IntegrationManagement:
                 (user_id,),
             ).fetchall()
         return IntegrationList(items=[IntegrationSummary(**row) for row in rows])
+
+    def missing_signals(self, user_id: UUID) -> Sequence[str]:
+        """Return the names of the required signals `user_id` has no integration for."""
+        with self._pool.connection() as conn:
+            rows = conn.execute(
+                "SELECT kind FROM integrations WHERE user_id = %s", (user_id,)
+            ).fetchall()
+        connected = {row["kind"] for row in rows}
+        return [name for name, kind in REQUIRED_SIGNALS.items() if kind not in connected]
 
     def update(
         self, user_id: UUID, integration_id: UUID, request: IntegrationUpdateRequest

@@ -7,7 +7,12 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from tracehound.api.app import create_app
-from tracehound.api.dependencies import get_current_user, get_incident_helper, get_token_verifier
+from tracehound.api.dependencies import (
+    get_current_user,
+    get_incident_helper,
+    get_integration_management,
+    get_token_verifier,
+)
 from tracehound.auth import InvalidToken, User
 from tracehound.schemas import (
     IncidentAccepted,
@@ -104,16 +109,33 @@ class BrokenHelper:
         raise psycopg.OperationalError("connection lost")
 
 
+class MemoryIntegrations:
+    """Stand-in for `IntegrationManagement`; reports `missing` as the unconfigured signals."""
+
+    def __init__(self, missing: list[str] | None = None) -> None:
+        self.missing = missing or []
+
+    def missing_signals(self, user_id: UUID) -> list[str]:
+        return self.missing
+
+
 class RejectingVerifier:
     def verify(self, token: str) -> User:
         raise InvalidToken(token)
 
 
-def _app_with(helper: object, user_id: UUID | None = USER_ID) -> FastAPI:
+def _app_with(
+    helper: object,
+    user_id: UUID | None = USER_ID,
+    integrations: object | None = None,
+) -> FastAPI:
     # The lifespan never runs because TestClient is not used as a context manager,
     # so no database pool is opened. `user_id=None` signs nobody in: every token is rejected.
     app = create_app(pool_factory=lambda: pytest.fail("pool should not open"))
     app.dependency_overrides[get_incident_helper] = lambda: helper
+    app.dependency_overrides[get_integration_management] = lambda: (
+        integrations or MemoryIntegrations()
+    )
     if user_id is None:
         app.dependency_overrides[get_token_verifier] = RejectingVerifier
     else:
@@ -137,6 +159,15 @@ def test_accepts_valid_request(client: TestClient) -> None:
     body = response.json()
     assert body["status_url"] == f"/v1/incidents/{body['incident_id']}"
     assert body["run_id"]
+
+
+def test_rejects_incident_when_integrations_are_missing(helper: MemoryHelper) -> None:
+    missing = MemoryIntegrations(["metrics", "deploys"])
+    client = TestClient(_app_with(helper, integrations=missing))
+    response = client.post("/v1/incidents", json=VALID)
+    assert response.status_code == 412
+    assert response.json()["detail"] == "Integration is not configured for: metrics, deploys."
+    assert helper.records == []
 
 
 def test_incident_is_stored_for_signed_in_user(client: TestClient, helper: MemoryHelper) -> None:
