@@ -67,7 +67,7 @@
 .home-card .eyebrow { color: var(--card-color); }
 .home-card .eyebrow > span { background: var(--card-color); }
 .home-card h2 { margin: 0 0 10px; font-size: var(--text-xl); font-weight: var(--weight-medium); letter-spacing: var(--tracking-tight); }
-.home-card-index { position: absolute; top: 24px; right: 26px; font-size: var(--text-2xs); font-variant-numeric: tabular-nums; color: var(--color-tertiary); }
+.home-card-index { position: absolute; top: 24px; right: 26px; font-size: var(--text-2xs); font-variant-numeric: tabular-nums; color: var(--card-color); }
 .home-card-description { flex: 1; margin: 0 0 22px; max-width: 420px; font-size: var(--text-base); line-height: var(--leading-relaxed); color: var(--color-muted); }
 .home-card-action { display: inline-flex; gap: 8px; font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--card-color); }
 .home-card-action span { transition: transform .2s; }
