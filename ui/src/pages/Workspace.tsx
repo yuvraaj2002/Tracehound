@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { getIncidentStats, listIncidents, type Incident, type IncidentPage, type IncidentStats, type IncidentFilters, type IncidentState, type Severity } from '../lib/api'
 import SignedInHeader from '../SignedInHeader'
@@ -164,8 +164,8 @@ function BarList({ rows, total, empty }: { rows: { key: string, label: string, c
 const states: IncidentState[] = ['CREATED', 'RUNNING', 'COMPLETED', 'FAILED']
 
 function Runs({ period }: { period: Period }) {
-  const [severity, setSeverity] = useState<Severity | ''>('')
-  const [state, setState] = useState<IncidentState | ''>('')
+  const [severity, setSeverity] = useState<Severity[]>([])
+  const [state, setState] = useState<IncidentState[]>([])
   const [service, setService] = useState('')
   const [serviceQuery, setServiceQuery] = useState('')
   // Wait for a pause in typing before asking for a service, instead of one request per keystroke.
@@ -173,8 +173,8 @@ function Runs({ period }: { period: Period }) {
     const timer = setTimeout(() => setServiceQuery(service.trim()), 300)
     return () => clearTimeout(timer)
   }, [service])
-  const filters = useMemo<IncidentFilters>(() => ({ ...(severity && { severity: [severity] }), ...(state && { state: [state] }), ...(serviceQuery && { service_id: serviceQuery }) }), [severity, state, serviceQuery])
-  const active = Boolean(severity || state || service.trim())
+  const filters = useMemo<IncidentFilters>(() => ({ ...(severity.length && { severity }), ...(state.length && { state }), ...(serviceQuery && { service_id: serviceQuery }) }), [severity, state, serviceQuery])
+  const active = Boolean(severity.length || state.length || service.trim())
 
   return (
     <section className="incident-list" aria-labelledby="incident-list-title">
@@ -183,14 +183,73 @@ function Runs({ period }: { period: Period }) {
         <p>Newest first</p>
       </div>
       <div className="run-filters" role="group" aria-label="Filter incidents">
-        <label><span>Severity</span><select value={severity} onChange={(event) => setSeverity(event.target.value as Severity | '')}><option value="">All</option>{severities.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-        <label><span>State</span><select value={state} onChange={(event) => setState(event.target.value as IncidentState | '')}><option value="">All</option>{states.map((value) => <option key={value} value={value}>{value.toLowerCase()}</option>)}</select></label>
-        <label><span>Service</span><input type="search" value={service} placeholder="Any service" spellCheck={false} onChange={(event) => setService(event.target.value)} /></label>
-        {active && <button type="button" className="button-quiet" onClick={() => { setSeverity(''); setState(''); setService('') }}>Clear filters</button>}
+        <OptionFilter label="Severity" options={severities} selected={severity} onChange={setSeverity} />
+        <OptionFilter label="State" options={states} selected={state} onChange={setState} />
+        <TextFilter label="Service" value={service} placeholder="Service name, e.g. checkout-api" onChange={setService} />
+        {active && <button type="button" className="filter-reset" onClick={() => { setSeverity([]); setState([]); setService('') }}>Reset</button>}
       </div>
       {/* Keyed on the filters so a change starts again from page 1. */}
       <RunsTable key={JSON.stringify(filters)} period={period} filters={filters} filtered={active} />
     </section>
+  )
+}
+
+const optionLabel = (value: string) => value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
+
+/** Open/close state for a filter popover: closes on an outside click or Escape. */
+function usePopover() {
+  const [open, setOpen] = useState(false)
+  const root = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const onPointer = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false) }
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') { setOpen(false); root.current?.querySelector<HTMLButtonElement>('.filter-chip')?.focus() } }
+    document.addEventListener('pointerdown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('pointerdown', onPointer); document.removeEventListener('keydown', onKey) }
+  }, [open])
+  return { open, setOpen, root }
+}
+
+function FilterChip({ label, summary, open, onToggle, onClear }: { label: string, summary: string, open: boolean, onToggle: () => void, onClear: () => void }) {
+  const set = summary !== ''
+  return (
+    <span className={set ? 'filter-chip-group is-set' : 'filter-chip-group'}>
+      <button type="button" className="filter-chip" aria-haspopup="true" aria-expanded={open} onClick={onToggle}>
+        <span className="filter-chip-label">{label}</span>{set && <>: <span className="filter-chip-value">{summary}</span></>}
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </button>
+      {set && <button type="button" className="filter-chip-clear" aria-label={`Clear ${label.toLowerCase()} filter`} onClick={onClear}>×</button>}
+    </span>
+  )
+}
+
+function OptionFilter<T extends string>({ label, options, selected, onChange }: { label: string, options: T[], selected: T[], onChange: (next: T[]) => void }) {
+  const { open, setOpen, root } = usePopover()
+  const toggle = (value: T) => onChange(selected.includes(value) ? selected.filter((item) => item !== value) : options.filter((item) => item === value || selected.includes(item)))
+  return (
+    <div className="filter" ref={root}>
+      <FilterChip label={label} summary={selected.map(optionLabel).join(', ')} open={open} onToggle={() => setOpen((value) => !value)} onClear={() => onChange([])} />
+      {open && <div className="filter-menu" role="group" aria-label={label}>
+        {options.map((value) => <label key={value} className="filter-option">
+          <input type="checkbox" checked={selected.includes(value)} onChange={() => toggle(value)} />
+          <span className="filter-check" aria-hidden="true" />
+          {optionLabel(value)}
+        </label>)}
+      </div>}
+    </div>
+  )
+}
+
+function TextFilter({ label, value, placeholder, onChange }: { label: string, value: string, placeholder: string, onChange: (next: string) => void }) {
+  const { open, setOpen, root } = usePopover()
+  return (
+    <div className="filter" ref={root}>
+      <FilterChip label={label} summary={value.trim()} open={open} onToggle={() => setOpen((current) => !current)} onClear={() => onChange('')} />
+      {open && <div className="filter-menu">
+        <input className="filter-input" type="search" aria-label={label} value={value} placeholder={placeholder} spellCheck={false} autoFocus onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') setOpen(false) }} />
+      </div>}
+    </div>
   )
 }
 
