@@ -48,3 +48,9 @@ export function useSmoothScroll() {
     }
   }, [])
 }
+
+/** Lenis smooth scrolling for every page, mounted once in main.tsx so it survives route changes. */
+export function SmoothScroll() {
+  useSmoothScroll()
+  return null
+}

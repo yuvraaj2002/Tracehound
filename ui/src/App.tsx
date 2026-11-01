@@ -6,7 +6,6 @@ import AgentThread from './AgentThread'
 import Pricing from './Pricing'
 import SupportedIntegrations from './SupportedIntegrations'
 import Footer from './Footer'
-import { useSmoothScroll } from './useSmoothScroll'
 import { useGetStarted } from './auth/useGetStarted'
 
 const agents = [
@@ -19,7 +18,6 @@ const agents = [
 ]
 
 function App() {
-  useSmoothScroll()
   const getStarted = useGetStarted()
   const [selected, setSelected] = useState(0)
 

@@ -39,7 +39,8 @@ export default function Dialog({ labelledBy, describedBy, onDismiss, fallbackFoc
   }
 
   return (
-    <div className="dialog-backdrop" onPointerDown={(event) => {
+    // data-lenis-prevent: the page's smooth scroll leaves the backdrop and a tall dialog to scroll natively.
+    <div className="dialog-backdrop" data-lenis-prevent onPointerDown={(event) => {
       if (event.target !== event.currentTarget) return
       // Keep focus inside the dialog, so Esc still reaches it after a backdrop click.
       event.preventDefault()

@@ -12,10 +12,12 @@ import Workspace from './pages/Workspace.tsx'
 import ApiKeys from './pages/ApiKeys.tsx'
 import Integrations from './pages/Integrations.tsx'
 import ApiDocs from './pages/ApiDocs.tsx'
+import { SmoothScroll } from './useSmoothScroll'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
+      <SmoothScroll />
       <AuthProvider>
         <Routes>
           <Route index element={<App />} />
