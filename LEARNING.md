@@ -7,6 +7,7 @@ Each entry says what the idea is, why we use it, and where it shows up in the co
 
 - [Storing money in minor units](#storing-money-in-minor-units)
 - [Supabase access and refresh tokens](#supabase-access-and-refresh-tokens)
+- [Supporting many LLM providers (BYOK)](#supporting-many-llm-providers-byok)
 
 ---
 
@@ -68,3 +69,42 @@ optional time-box or inactivity limit set in the dashboard.
 **In our stack.** The refresh happens inside supabase-js in the React (Vite) app. FastAPI
 never sees the refresh token. It only receives the fresh access token in the
 `Authorization` header (e.g. on `/v1/me`) and validates that JWT.
+
+---
+
+## Supporting many LLM providers (BYOK)
+
+*Came up in: asking how to let users bring their own API key for models other than Ollama*
+
+Every provider has its own SDK and request format, so the usual answer is to hide them
+behind one internal interface (the adapter pattern). The agents call `generate()` and never
+import a vendor SDK directly. There are three common ways to fill that interface:
+
+1. **One adapter class per provider.** You write `AnthropicLLM`, `OpenAILLM`, `OllamaLLM`,
+   and so on. This gives full control but is the most code to maintain. LangChain and the
+   Vercel AI SDK are built this way.
+2. **A gateway library such as LiteLLM.** One `completion(model="anthropic/claude-...")` call
+   translates to 100+ providers, including key handling, retries and cost tracking. This is
+   the most common shortcut.
+3. **OpenAI-compatible endpoints.** Ollama, vLLM, Groq, Together, OpenRouter and Gemini all
+   accept the OpenAI chat format. One OpenAI client plus a different `base_url` and key
+   covers them, though Anthropic's native API is still separate.
+
+The hard part is usually structured output, not the chat call itself. Providers get JSON in
+different ways: a JSON schema field, tool calling, or plain JSON mode. Libraries such as
+Instructor, or LiteLLM's `response_format`, smooth this over. Small models still need
+validation and retries.
+
+**What BYOK adds on top:**
+
+- **Store keys encrypted and per user.** Use something like Supabase Vault or envelope
+  encryption. A key is decrypted only in the worker at call time, never sent back to the
+  browser (show only the last 4 characters), and never logged.
+- **Check the key when it is saved** with a cheap call, such as listing models.
+- **Save the provider and model on each run**, so results can be compared and reproduced.
+- **Have a fallback**, such as the local Ollama model, when no key is set.
+
+**In our stack.** The seam already exists: `StructuredLLM` (a Protocol) in
+`src/tracehound/agents/inference.py`, with `OllamaLLM` as its only implementation. The worker
+picks the model in `src/tracehound/worker/runner.py`. BYOK means adding implementations (or
+one LiteLLM-backed one) and choosing among them per user instead of from `OLLAMA_MODEL`.

@@ -110,3 +110,18 @@ One-time setup in the Supabase dashboard:
    `https://gtokkvxmjzyutqvohlqq.supabase.co/auth/v1/callback`.
 2. **Auth → URL Configuration**: set Site URL to `http://localhost:5173` and add
    `http://localhost:5173/auth/callback` to Redirect URLs.
+
+## Planned
+
+### Bring your own key (BYOK)
+
+Investigations currently run only on a local Ollama model (`OLLAMA_MODEL`, default
+`LiquidAI/lfm2.5-1.2b-instruct`). The plan is to let each user add their own API key for a
+hosted provider such as Anthropic, OpenAI or Gemini:
+
+- One new `StructuredLLM` implementation (`src/tracehound/agents/inference.py`), likely backed
+  by LiteLLM, so the agents themselves don't change.
+- Keys stored encrypted per user (e.g. Supabase Vault), decrypted only in the worker, never
+  returned to the UI or logged, and checked with a cheap call when saved.
+- The provider and model recorded on each run, with local Ollama as the fallback when no key
+  is set.
