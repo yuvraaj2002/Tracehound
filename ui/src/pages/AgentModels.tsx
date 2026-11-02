@@ -1,14 +1,18 @@
 import { useEffect, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { Link } from 'react-router'
 import { agentRoster } from '../lib/agents'
-import { getAgentModels, saveAgentModel, type AgentId, type AgentModelConfig, type AgentModels as Catalog } from '../lib/modelsStub'
+import { getAgentModels, saveAgentModel, type AgentId, type AgentModelConfig, type AgentModels as Catalog, type Creativity } from '../lib/modelsStub'
 import SignedInHeader from '../SignedInHeader'
 import '../auth.css'
 
 const count = agentRoster.length
+const creativityLevels: { id: Creativity, label: string, hint: string }[] = [
+  { id: 'precise', label: 'Precise', hint: 'Sticks closely to the evidence and gives the same answer on a rerun. Best for investigations.' },
+  { id: 'balanced', label: 'Balanced', hint: 'Mostly steady, with room to suggest less obvious causes.' },
+  { id: 'creative', label: 'Creative', hint: 'Explores more possibilities. Answers vary more between runs.' },
+]
 const without = <T extends object>(record: T, key: keyof T): T => { const next = { ...record }; delete next[key]; return next }
-const same = (a: AgentModelConfig, b: AgentModelConfig) => a.provider === b.provider && a.model === b.model && a.temperature === b.temperature
-const formatTokens = (n: number) => n >= 1000 ? `${Math.round(n / 1000)}K` : String(n)
+const same = (a: AgentModelConfig, b: AgentModelConfig) => a.provider === b.provider && a.model === b.model && a.creativity === b.creativity
 /** Shortest signed distance from the active slot, so the belt wraps around: -3..2 for six agents. */
 const offsetFrom = (index: number, active: number) => ((index - active + count + Math.floor(count / 2)) % count) - Math.floor(count / 2)
 
@@ -149,11 +153,6 @@ function ModelCard({ agent, catalog, draft, saving, onChange, onDiscard, onSave,
         <button type="button" className="model-card-close" onClick={onClose} aria-label="Close model settings">×</button>
       </header>
 
-      <dl className="model-current">
-        <div><dt>Provider</dt><dd>{provider.label}</dd></div>
-        <div><dt>Model</dt><dd><code>{model.id}</code></dd></div>
-        <div><dt>Context</dt><dd>{formatTokens(model.context_tokens)} tokens</dd></div>
-      </dl>
 
       <fieldset className="model-field">
         <legend>Provider</legend>
@@ -173,11 +172,16 @@ function ModelCard({ agent, catalog, draft, saving, onChange, onDiscard, onSave,
         <p className="field-hint"><span>{model.note}</span></p>
       </div>
 
-      <div className="model-field">
-        <label htmlFor={`temp-${agent.id}`}>Temperature <output htmlFor={`temp-${agent.id}`}>{config.temperature.toFixed(1)}</output></label>
-        <input id={`temp-${agent.id}`} type="range" min={0} max={1} step={0.1} value={config.temperature} onChange={(event) => onChange({ ...config, temperature: Number(event.target.value) })} />
-        <p className="field-hint"><span>Lower is steadier and repeatable. Investigations work best at 0.0 to 0.3.</span></p>
-      </div>
+      <fieldset className="model-field">
+        <legend>Creativity</legend>
+        <div className="creativity-options">
+          {creativityLevels.map((level) => <label key={level.id} className="creativity-option">
+            <input type="radio" name={`creativity-${agent.id}`} value={level.id} checked={config.creativity === level.id} onChange={() => onChange({ ...config, creativity: level.id })} />
+            <span>{level.label}</span>
+          </label>)}
+        </div>
+        <p className="field-hint"><span>{creativityLevels.find((level) => level.id === config.creativity)?.hint}</span></p>
+      </fieldset>
 
       <div className="model-actions">
         <button type="button" className="button-quiet" disabled={isDefault || saving} onClick={() => onChange({ ...catalog.defaults })}>Reset to default</button>

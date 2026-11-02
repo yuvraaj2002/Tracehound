@@ -1,0 +1,55 @@
+/* Provider logos are single-colour SVGs used as masks, so they take the current text colour. */
+.provider-logo { display: inline-block; flex-shrink: 0; width: 14px; height: 14px; background: currentColor; mask-size: contain; mask-repeat: no-repeat; mask-position: center; -webkit-mask-size: contain; -webkit-mask-repeat: no-repeat; -webkit-mask-position: center; }
+.provider-logo-large { width: 30px; height: 30px; }
+
+.models { width: min(100% - 9%, 1512px); margin: 0 auto; padding: 120px 0 40px; }
+.models-providers { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 44px 0 0; padding: 0; list-style: none; }
+.models-provider { display: grid; grid-template-rows: auto 1fr auto; gap: 18px; padding: 24px; border: 1px solid var(--color-line); border-radius: 12px; color: var(--color-ink); transition: border-color .2s; }
+.models-provider:hover { border-color: var(--color-primary); }
+.models-provider h3 { margin: 0 0 4px; font-size: var(--text-lg); font-weight: var(--weight-medium); letter-spacing: var(--tracking-tight); }
+.models-provider p { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--color-muted); }
+.models-tag { justify-self: start; padding: 3px 9px; border: 1px solid var(--color-line); border-radius: 999px; font-size: var(--text-2xs); font-weight: var(--weight-medium); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--color-muted); }
+.models-tag.is-live { border-color: currentColor; color: var(--agent-metrics); }
+
+.models-lineup { margin-top: 28px; padding: 24px; border: 1px solid var(--color-line); border-radius: 12px; }
+.models-lineup-title { margin: 0 0 16px; font-size: var(--text-2xs); font-weight: var(--weight-medium); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--color-muted); }
+.models-lineup ol { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.models-lineup li { display: grid; gap: 10px; padding-top: 14px; border-top: 2px solid var(--agent-color); }
+.models-agent { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; font-size: var(--text-md); font-weight: var(--weight-medium); color: var(--color-ink); }
+.models-agent .agent-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--agent-color); align-self: center; }
+.models-agent small { width: 100%; font-size: var(--text-2xs); font-weight: var(--weight-medium); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--agent-color); }
+.models-pick { display: inline-flex; align-items: center; gap: 7px; justify-self: start; padding: 6px 10px; border: 1px solid var(--color-line); border-radius: 999px; font-size: var(--text-xs); color: var(--color-ink); }
+
+
+
+/* Hero: model names that rise out of each agent like a soul, rest above the head, then fade. */
+.hero-souls { position: absolute; inset: 0; z-index: 1; margin: 0; padding: 0; list-style: none; pointer-events: none; }
+.hero-soul {
+  position: absolute; left: var(--to-x); top: var(--to-y); display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px 5px 9px;
+  border: 1px solid color-mix(in srgb, var(--agent-color) 30%, var(--color-line)); border-radius: 999px; background: var(--color-white);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--agent-color) 10%, transparent), 0 10px 26px color-mix(in srgb, var(--agent-color) 28%, transparent);
+  font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--color-ink); white-space: nowrap;
+  transform: translate(-50%, calc(-100% - 6px)); animation: soul-rise 3s linear var(--delay) both;
+}
+.hero-soul[data-side] { transform: translate(0, -50%); }
+.hero-soul .provider-logo { color: var(--agent-color); }
+/* Appears at the chest, rises to the head, rests, then drifts up and away. */
+@keyframes soul-rise {
+  0% { left: var(--from-x); top: var(--from-y); opacity: 0; scale: .4; filter: blur(6px); animation-timing-function: ease-out; }
+  12% { left: var(--from-x); top: calc(var(--from-y) - 3%); opacity: .95; scale: .7; filter: blur(1px); animation-timing-function: cubic-bezier(.45, 0, .2, 1); }
+  48% { left: var(--to-x); top: var(--to-y); opacity: 1; scale: 1; filter: blur(0); animation-timing-function: linear; }
+  84% { left: var(--to-x); top: var(--to-y); opacity: 1; scale: 1; filter: blur(0); animation-timing-function: ease-in; }
+  100% { left: var(--to-x); top: calc(var(--to-y) - 5%); opacity: 0; scale: .92; filter: blur(3px); }
+}
+
+@media (max-width: 1000px) {
+  .models-providers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .models-lineup ol { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 20px; }
+}
+@media (max-width: 640px) {
+  .models { padding-top: 80px; }
+  .models-providers, .models-lineup ol { grid-template-columns: 1fr 1fr; }
+  .hero-soul { gap: 4px; padding: 3px 7px; font-size: 10px; }
+  .hero-soul .provider-logo { width: 10px; height: 10px; }
+}
+@media (prefers-reduced-motion: reduce) { .hero-soul { animation: none; } }

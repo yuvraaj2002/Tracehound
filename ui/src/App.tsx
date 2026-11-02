@@ -4,6 +4,8 @@ import './App.css'
 import InvestigationFlow from './InvestigationFlow'
 import AgentThread from './AgentThread'
 import Pricing from './Pricing'
+import ModelProviders from './ModelProviders'
+import HeroModels from './HeroModels'
 import SupportedIntegrations from './SupportedIntegrations'
 import ServiceCatalog from './ServiceCatalog'
 import Footer from './Footer'
@@ -38,6 +40,7 @@ function App() {
         <nav aria-label="Main navigation">
           <a href="#agents">Agents</a>
           <a href="#how">How it works</a>
+          <a href="#models">Models</a>
           <a href="#pricing">Pricing</a>
           <a className="nav-developer" href="https://www.linkedin.com/in/yuvraaj-singh/" target="_blank" rel="noopener noreferrer">Meet the developer <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></a>
           <Link className="nav-cta" to={getStarted.to} onClick={getStarted.start} aria-busy={getStarted.checking || undefined}>Get started <span aria-hidden="true">→</span></Link>
@@ -54,7 +57,10 @@ function App() {
           <div className="agent-stage">
             <div className="stage-caption"><span>THE INVESTIGATION UNIT</span><span>06 SPECIALISTS / ONE SHARED MISSION</span></div>
             <div className="stage-word" aria-hidden="true">ON THE CASE.</div>
-            <img className="hero-image" src="/agents-hero-hd.png" alt="The Tracehound team: six colorful, fuzzy AI investigators with tools for logs, metrics, triage, dependencies, hypotheses, and deploys" fetchPriority="high" width="1680" height="936" />
+            <div className="hero-figure">
+              <img className="hero-image" src="/agents-hero-hd.png" alt="The Tracehound team: six colorful, fuzzy AI investigators with tools for logs, metrics, triage, dependencies, hypotheses, and deploys" fetchPriority="high" width="1680" height="936" />
+              <HeroModels />
+            </div>
           </div>
 
           <a className="team-scroll" href="#agents"><span>Six specialists. Meet them one by one.</span><span aria-hidden="true">Scroll to explore ↓</span></a>
@@ -86,6 +92,7 @@ function App() {
 
         <InvestigationFlow />
         <SupportedIntegrations />
+        <ModelProviders />
         <ServiceCatalog />
         <Pricing />
       </main>

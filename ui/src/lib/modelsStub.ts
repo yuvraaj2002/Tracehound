@@ -20,7 +20,14 @@ export type Provider = {
   models: ModelOption[]
 }
 
-export type AgentModelConfig = { provider: string, model: string, temperature: number }
+/**
+ * How freely the agent reasons. Not every model takes a temperature (Claude 5 models don't), so
+ * the backend maps this level to whatever the chosen model supports: a temperature for Ollama,
+ * and the model's own defaults or reasoning settings elsewhere.
+ */
+export type Creativity = 'precise' | 'balanced' | 'creative'
+
+export type AgentModelConfig = { provider: string, model: string, creativity: Creativity }
 
 export type AgentModels = { providers: Provider[], defaults: AgentModelConfig, agents: Record<AgentId, AgentModelConfig> }
 
@@ -45,7 +52,7 @@ const providers: Provider[] = [
   { id: 'google', label: 'Google Gemini', hosting: 'Hosted API, your key', connected: false, models: [] },
 ]
 
-const defaults: AgentModelConfig = { provider: 'ollama', model: 'LiquidAI/lfm2.5-1.2b-instruct', temperature: 0.2 }
+const defaults: AgentModelConfig = { provider: 'ollama', model: 'LiquidAI/lfm2.5-1.2b-instruct', creativity: 'precise' }
 
 let saved: Record<AgentId, AgentModelConfig> = {
   triage: { ...defaults },
@@ -53,7 +60,7 @@ let saved: Record<AgentId, AgentModelConfig> = {
   metrics: { ...defaults },
   dependency: { ...defaults },
   deploy: { ...defaults },
-  hypothesis: { provider: 'anthropic', model: 'claude-sonnet-5-5', temperature: 0.3 },
+  hypothesis: { provider: 'anthropic', model: 'claude-sonnet-5-5', creativity: 'balanced' },
 }
 
 const delay = <T,>(value: T, ms = 350) => new Promise<T>((resolve) => setTimeout(() => resolve(value), ms))
