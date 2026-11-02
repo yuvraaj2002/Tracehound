@@ -7,6 +7,7 @@ import psycopg
 from fastapi import APIRouter, HTTPException, Response, status
 
 from tracehound.api.dependencies import CurrentUserDep, IntegrationManagementDep
+from tracehound.helpers.integration_client import test_connection
 from tracehound.helpers.integration_helper import IntegrationExists
 from tracehound.schemas import (
     IntegrationCreateRequest,
@@ -73,6 +74,34 @@ def update_integration(
     if updated is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found.")
     return updated
+
+
+@router.post("/{integration_id}/test")
+def test_integration(
+    integration_id: UUID, user: CurrentUserDep, integrations: IntegrationManagementDep
+) -> IntegrationSummary:
+    """Make one authenticated read against the backend and store the outcome.
+
+    A failed connection is a normal result (status `failing` with `last_error`), not an error
+    response; only a missing integration or a database failure is.
+    """
+    try:
+        connection = integrations.connection(user.user_id, integration_id)
+        if connection is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found."
+            )
+        error = test_connection(connection)
+        tested = integrations.record_test(user.user_id, integration_id, error)
+    except psycopg.Error as exc:
+        logger.exception("Failed to test integration %s for user %s", integration_id, user.user_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not test the integration.",
+        ) from exc
+    if tested is None:  # deleted while the test ran
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found.")
+    return tested
 
 
 @router.delete("/{integration_id}", status_code=status.HTTP_204_NO_CONTENT)

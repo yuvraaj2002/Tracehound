@@ -71,6 +71,9 @@ services:
       OTEL_LOGS_EXPORTER: otlp
       OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: "true"
       OTEL_METRIC_EXPORT_INTERVAL: "5000"
+      # Emit the stable HTTP names (http_server_request_duration_seconds) the Prometheus
+      # adapter queries, instead of the old http_server_duration_milliseconds.
+      OTEL_SEMCONV_STABILITY_OPT_IN: http
     ports:
       - "8080:8080"
     restart: unless-stopped

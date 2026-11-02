@@ -13,6 +13,7 @@ from psycopg import errors
 from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
+from tracehound.helpers.integration_client import Connection
 from tracehound.schemas import (
     IntegrationCreateRequest,
     IntegrationList,
@@ -129,7 +130,7 @@ class IntegrationManagement:
                     "INSERT INTO integrations"
                     " (id, user_id, kind, config, secret_ciphertext, secret_key_version)"
                     " VALUES (%s, %s, %s, %s, %s, %s)"
-                    " RETURNING status, last_tested_at, created_at",
+                    " RETURNING status, last_tested_at, last_error, created_at",
                     (integration_id, user_id, request.kind, Jsonb(config), ciphertext, key_version),
                 ).fetchone()
         except errors.UniqueViolation as exc:
@@ -151,7 +152,7 @@ class IntegrationManagement:
         with self._pool.connection() as conn:
             rows = conn.execute(
                 "SELECT id, kind, config, secret_ciphertext IS NOT NULL AS has_secret, status,"
-                " last_tested_at, created_at FROM integrations"
+                " last_tested_at, last_error, created_at FROM integrations"
                 " WHERE user_id = %s ORDER BY created_at, id",
                 (user_id,),
             ).fetchall()
@@ -193,7 +194,7 @@ class IntegrationManagement:
                 " status = 'untested', last_tested_at = NULL, last_error = NULL, updated_at = now()"
                 " WHERE id = %(id)s"
                 " RETURNING id, kind, config, secret_ciphertext IS NOT NULL AS has_secret, status,"
-                " last_tested_at, created_at",
+                " last_tested_at, last_error, created_at",
                 {
                     "config": Jsonb(config),
                     "replace": replace_secret,
@@ -204,6 +205,59 @@ class IntegrationManagement:
             ).fetchone()
         assert row is not None
         return IntegrationSummary(**row)
+
+    def _to_connection(self, row: dict[str, Any]) -> Connection:
+        """Decrypt a row's credential. Raises if it was sealed with a key this build lacks."""
+        secret = None
+        if row["secret_ciphertext"] is not None:
+            if row["secret_key_version"] != self.KEY_VERSION:
+                raise RuntimeError(
+                    f"integration {row['id']} uses key version {row['secret_key_version']},"
+                    f" only {self.KEY_VERSION} is loaded"
+                )
+            secret = self._box.decrypt(bytes(row["secret_ciphertext"]), row["id"].bytes)
+        return Connection(id=row["id"], kind=row["kind"], config=row["config"], secret=secret)
+
+    _CONNECTION_COLUMNS = "id, kind, config, secret_ciphertext, secret_key_version"
+
+    def connection(self, user_id: UUID, integration_id: UUID) -> Connection | None:
+        """One of the user's integrations with its decrypted credential, or None if not theirs."""
+        with self._pool.connection() as conn:
+            row = conn.execute(
+                f"SELECT {self._CONNECTION_COLUMNS} FROM integrations"
+                " WHERE id = %s AND user_id = %s",
+                (integration_id, user_id),
+            ).fetchone()
+        return None if row is None else self._to_connection(row)
+
+    def connections(self, user_id: UUID) -> dict[IntegrationKind, Connection]:
+        """All of the user's integrations with decrypted credentials, keyed by kind."""
+        with self._pool.connection() as conn:
+            rows = conn.execute(
+                f"SELECT {self._CONNECTION_COLUMNS} FROM integrations WHERE user_id = %s",
+                (user_id,),
+            ).fetchall()
+        return {row["kind"]: self._to_connection(row) for row in rows}
+
+    def record_test(
+        self, user_id: UUID, integration_id: UUID, error: str | None
+    ) -> IntegrationSummary | None:
+        """Store a connection test's outcome: active on success, else failing with `error`."""
+        with self._pool.connection() as conn:
+            row = conn.execute(
+                "UPDATE integrations SET status = %(status)s, last_tested_at = now(),"
+                " last_error = %(error)s"
+                " WHERE id = %(id)s AND user_id = %(user_id)s"
+                " RETURNING id, kind, config, secret_ciphertext IS NOT NULL AS has_secret, status,"
+                " last_tested_at, last_error, created_at",
+                {
+                    "status": "active" if error is None else "failing",
+                    "error": error,
+                    "id": integration_id,
+                    "user_id": user_id,
+                },
+            ).fetchone()
+        return None if row is None else IntegrationSummary(**row)
 
     def delete(self, user_id: UUID, integration_id: UUID) -> bool:
         """Permanently delete `integration_id` and its encrypted credential.

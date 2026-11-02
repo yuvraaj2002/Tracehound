@@ -148,6 +148,7 @@ class IntegrationSummary(BaseModel):
     has_secret: bool
     status: IntegrationStatus
     last_tested_at: AwareDatetime | None = None
+    last_error: str | None = None
     created_at: AwareDatetime
 
 
