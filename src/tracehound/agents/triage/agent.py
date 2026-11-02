@@ -8,9 +8,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from tracehound.agents.inference import StructuredLLM
 from tracehound.agents.triage.prompt import SYSTEM_PROMPT
 from tracehound.schemas.incident import IncidentRecord
-from tracehound.schemas.telemetry import Deploy, Edge, ServiceNode
+from tracehound.schemas.telemetry import Deploy, Edge, ServiceNode, Topology
 from tracehound.schemas.triage import InvestigationScope, Specialist, SpecialistTask
-from tracehound.tools.triage import load_deploys, load_topology
+from tracehound.tools.deploys import DeploySource, FileDeploySource
+from tracehound.tools.triage import load_topology
 
 CHANGE_LOOKBACK = timedelta(hours=1)
 """How far before the symptom window to look for deploys. Changes often precede symptoms."""
@@ -54,11 +55,22 @@ class TriageDecision(BaseModel):
 
 
 class TriageAgent:
-    """Deterministic context gathering, then one LLM call. Errors propagate to the caller."""
+    """Deterministic context gathering, then one LLM call. Errors propagate to the caller.
 
-    def __init__(self, scenario_dir: Path, llm: StructuredLLM) -> None:
-        self._scenario_dir = scenario_dir
+    ``topology`` says which services are one hop from the alerting one: a scenario's
+    topology.json, or the user's uploaded service catalog. ``deploys`` is read for changes to
+    those services shortly before the symptoms.
+    """
+
+    def __init__(self, topology: Topology, deploys: DeploySource, llm: StructuredLLM) -> None:
+        self._topology = topology
+        self._deploys = deploys
         self._llm = llm
+
+    @classmethod
+    def from_scenario(cls, scenario_dir: Path, llm: StructuredLLM) -> "TriageAgent":
+        """Triage over a scenario folder's topology.json and deploys.json."""
+        return cls(load_topology(scenario_dir), FileDeploySource(scenario_dir), llm)
 
     def __call__(self, incident: IncidentRecord) -> InvestigationScope:
         ctx = self.build_context(incident)
@@ -70,7 +82,7 @@ class TriageAgent:
         return self.scope_from_decision(ctx, decision)
 
     def build_context(self, incident: IncidentRecord) -> TriageContext:
-        topology = load_topology(self._scenario_dir)
+        topology = self._topology
         alert = incident.service_id
         in_reach = {alert} | topology.neighbors(alert)
         known = {node.id: node for node in topology.services}
@@ -81,7 +93,7 @@ class TriageAgent:
             incident=incident,
             candidates=candidates,
             edges=topology.edges_touching(in_reach),
-            deploys=load_deploys(self._scenario_dir, in_reach, change_start, incident.window_end),
+            deploys=self._deploys.fetch(in_reach, change_start, incident.window_end),
             change_window_start=change_start,
         )
 

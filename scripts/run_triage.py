@@ -26,7 +26,7 @@ def main() -> None:
     print("===== INCIDENT =====")
     print(incident.model_dump_json(indent=2))
 
-    scope = TriageAgent(scenario, PrintingLLM())(incident)
+    scope = TriageAgent.from_scenario(scenario, PrintingLLM())(incident)
 
     print("\n===== INVESTIGATION SCOPE =====")
     print(scope.model_dump_json(indent=2))

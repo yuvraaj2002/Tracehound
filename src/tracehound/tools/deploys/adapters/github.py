@@ -52,8 +52,10 @@ class GitHubDeploySource(DeploySource):
         newest_first = [
             raw for raw in self._list(self._repos[service], start) if _service_of(raw, service)
         ]
-        deploys = []
-        for raw, older in zip(newest_first, [*newest_first[1:], None], strict=True):
+        deploys: list[Deploy] = []
+        # Pair each deployment with the one before it; the oldest has none.
+        older_ones: list[dict[str, Any] | None] = [*newest_first[1:], None] if newest_first else []
+        for raw, older in zip(newest_first, older_ones, strict=True):
             deploy = _to_deploy(raw, service, _version(older) if older else None)
             if start <= deploy.deployed_at <= end:
                 deploys.append(deploy)

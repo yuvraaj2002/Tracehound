@@ -24,5 +24,5 @@ def test_live_triage_scopes_checkout_incident() -> None:
     incident = IncidentRecord(
         id=uuid4(), run_id=uuid4(), state="created", created_at=now, updated_at=now, **alert
     )
-    scope = TriageAgent(SCENARIO, OllamaLLM())(incident)
+    scope = TriageAgent.from_scenario(SCENARIO, OllamaLLM())(incident)
     assert {"checkout-api", "orders-db"} <= set(scope.services)

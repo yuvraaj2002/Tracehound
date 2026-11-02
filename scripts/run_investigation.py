@@ -93,7 +93,7 @@ def run(scenario: Path, alert: dict, now: datetime, run_dir: Path) -> None:
 
     llm = PrintingLLM()
     graph = build_graph(
-        TriageAgent(scenario, llm),
+        TriageAgent.from_scenario(scenario, llm),
         {
             "logs": LogsAgent(FileLogSource(scenario), llm),
             "metrics": MetricsAgent(FileMetricSource(scenario), llm),

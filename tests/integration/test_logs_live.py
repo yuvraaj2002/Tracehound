@@ -27,7 +27,7 @@ def test_live_logs_cites_pool_timeouts() -> None:
         id=uuid4(), run_id=uuid4(), state="created", created_at=now, updated_at=now, **alert
     )
     llm = OllamaLLM()
-    scope = TriageAgent(SCENARIO, llm)(incident)
+    scope = TriageAgent.from_scenario(SCENARIO, llm)(incident)
     if Specialist.LOGS not in {task.specialist for task in scope.tasks}:
         pytest.skip("live triage did not select the logs specialist")
     report = LogsAgent(FileLogSource(SCENARIO), llm)(scope, incident.run_id)

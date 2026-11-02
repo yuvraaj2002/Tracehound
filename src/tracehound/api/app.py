@@ -21,10 +21,12 @@ from tracehound.api.plans import router as plans_router
 from tracehound.auth import TokenVerifier, supabase_url
 from tracehound.db import create_pool, database_url
 from tracehound.helpers.api_key_helper import api_key_hash_secret
+from tracehound.helpers.catalog_helper import CatalogStore
 from tracehound.helpers.incident_helper import IncidentHelper
-from tracehound.helpers.integration_helper import integration_encryption_key
+from tracehound.helpers.integration_helper import IntegrationManagement, integration_encryption_key
 from tracehound.helpers.investigation_helper import InvestigationStore
 from tracehound.worker import InvestigationRunner
+from tracehound.worker.runner import LiveAgents
 
 
 def _default_pool() -> ConnectionPool:
@@ -59,7 +61,11 @@ def create_app(pool_factory: Callable[[], ConnectionPool] = _default_pool) -> Fa
             store = InvestigationStore(pool)
             # Runs interrupted by a restart would stay RUNNING forever otherwise.
             store.fail_stale_runs()
-            runner = InvestigationRunner(store)
+            live = LiveAgents(
+                IntegrationManagement(pool, app.state.integration_encryption_key),
+                CatalogStore(pool),
+            )
+            runner = InvestigationRunner(store, live_agents=live)
             app.state.investigation_runner = runner
             try:
                 yield

@@ -72,7 +72,9 @@ def test_tools_return_neighbors_and_deploys() -> None:
 
 
 def test_context_covers_neighbors_and_early_deploys(incident: IncidentRecord) -> None:
-    ctx = TriageAgent(SCENARIO, FakeLLM(_decision(CANDIDATES))).build_context(incident)
+    ctx = TriageAgent.from_scenario(SCENARIO, FakeLLM(_decision(CANDIDATES))).build_context(
+        incident
+    )
     assert [n.id for n in ctx.candidates] == [
         "checkout-api",
         "inventory-api",
@@ -85,7 +87,7 @@ def test_context_covers_neighbors_and_early_deploys(incident: IncidentRecord) ->
 
 def _user_message(incident: IncidentRecord) -> str:
     llm = FakeLLM(_decision(CANDIDATES))
-    TriageAgent(SCENARIO, llm)(incident)
+    TriageAgent.from_scenario(SCENARIO, llm)(incident)
     return llm.calls[0]["user"]
 
 
@@ -106,7 +108,7 @@ def test_prompt_neutralises_tags_in_untrusted_text(incident: IncidentRecord) -> 
 
 def test_llm_decision_becomes_scope(incident: IncidentRecord) -> None:
     llm = FakeLLM(_decision(["orders-db", "checkout-api"]))
-    scope = TriageAgent(SCENARIO, llm)(incident)
+    scope = TriageAgent.from_scenario(SCENARIO, llm)(incident)
     assert scope.services == ["checkout-api", "orders-db"]
     assert scope.change_window_start == datetime(2026, 10, 15, 12, 45, tzinfo=UTC)
     assert llm.calls[0]["schema"] is TriageDecision
@@ -114,20 +116,20 @@ def test_llm_decision_becomes_scope(incident: IncidentRecord) -> None:
 
 def test_alert_service_is_always_in_scope(incident: IncidentRecord) -> None:
     decision = _decision(["orders-db"])
-    scope = TriageAgent(SCENARIO, FakeLLM(decision))(incident)
+    scope = TriageAgent.from_scenario(SCENARIO, FakeLLM(decision))(incident)
     assert scope.services == ["checkout-api", "orders-db"]
     assert all(task.services == scope.services for task in scope.tasks)
 
 
 def test_null_question_skips_specialist(incident: IncidentRecord) -> None:
     decision = _decision(CANDIDATES, metrics_question=None, dependency_question=" ")
-    scope = TriageAgent(SCENARIO, FakeLLM(decision))(incident)
+    scope = TriageAgent.from_scenario(SCENARIO, FakeLLM(decision))(incident)
     assert [task.specialist for task in scope.tasks] == [Specialist.LOGS, Specialist.DEPLOY]
 
 
 def test_task_services_narrow_but_keep_alert(incident: IncidentRecord) -> None:
     decision = _decision(CANDIDATES, logs_services=["orders-db"], deploy_services=[])
-    scope = TriageAgent(SCENARIO, FakeLLM(decision))(incident)
+    scope = TriageAgent.from_scenario(SCENARIO, FakeLLM(decision))(incident)
     assert scope.task_for(Specialist.LOGS).services == ["checkout-api", "orders-db"]
     assert scope.task_for(Specialist.DEPLOY).services == scope.services  # empty means all
     assert scope.task_for(Specialist.METRICS).services == scope.services  # null means all
@@ -137,7 +139,7 @@ def test_task_services_outside_scope_are_dropped(incident: IncidentRecord) -> No
     decision = _decision(
         ["orders-db"], logs_services=["payments-api"], metrics_services=["metrics", "orders-db"]
     )
-    scope = TriageAgent(SCENARIO, FakeLLM(decision))(incident)
+    scope = TriageAgent.from_scenario(SCENARIO, FakeLLM(decision))(incident)
     assert scope.task_for(Specialist.LOGS).services == scope.services  # nothing valid: all
     assert scope.task_for(Specialist.METRICS).services == ["checkout-api", "orders-db"]
 
@@ -145,7 +147,7 @@ def test_task_services_outside_scope_are_dropped(incident: IncidentRecord) -> No
 def test_no_specialist_selected_raises(incident: IncidentRecord) -> None:
     decision = _decision(CANDIDATES, **{f"{s}_question": None for s in Specialist})
     with pytest.raises(ValueError, match="no specialists"):
-        TriageAgent(SCENARIO, FakeLLM(decision))(incident)
+        TriageAgent.from_scenario(SCENARIO, FakeLLM(decision))(incident)
 
 
 @pytest.mark.parametrize(
@@ -158,7 +160,7 @@ def test_no_specialist_selected_raises(incident: IncidentRecord) -> None:
 )
 def test_bad_llm_result_raises(incident: IncidentRecord, result: BaseModel | Exception) -> None:
     with pytest.raises((LLMError, ValueError)):
-        TriageAgent(SCENARIO, FakeLLM(result))(incident)
+        TriageAgent.from_scenario(SCENARIO, FakeLLM(result))(incident)
 
 
 @pytest.mark.parametrize(
@@ -173,7 +175,7 @@ def test_bad_llm_result_raises(incident: IncidentRecord, result: BaseModel | Exc
 def test_scope_rejects_inconsistent_values(
     incident: IncidentRecord, override: dict[str, Any]
 ) -> None:
-    scope = TriageAgent(SCENARIO, FakeLLM(_decision(CANDIDATES)))(incident)
+    scope = TriageAgent.from_scenario(SCENARIO, FakeLLM(_decision(CANDIDATES)))(incident)
     with pytest.raises(ValidationError):
         InvestigationScope.model_validate({**scope.model_dump(), **override})
 
@@ -212,7 +214,7 @@ def _graph(incident: IncidentRecord, decision: TriageDecision) -> Any:
         }
     )
     return build_graph(
-        TriageAgent(SCENARIO, FakeLLM(decision)),
+        TriageAgent.from_scenario(SCENARIO, FakeLLM(decision)),
         {
             "logs": LogsAgent(FileLogSource(SCENARIO), FakeLLM(logs)),
             "metrics": MetricsAgent(FileMetricSource(SCENARIO), FakeLLM(metrics)),

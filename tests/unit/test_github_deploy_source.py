@@ -112,3 +112,19 @@ def test_too_many_pages_raises() -> None:
 
     with pytest.raises(ValueError, match="more than 2 pages"):
         source.fetch({"checkout-api"}, START, END)
+
+
+def test_service_with_no_deployments_in_a_shared_repo_has_none() -> None:
+    # Only checkout-api deploys from the monorepo; orders shares it but has no deployments.
+    shared = [_deployment(4, "2026-10-15T13:30:00Z", "main", payload={"service": "checkout-api"})]
+    source = _source(
+        {"acme/mono": [shared]}, repos={"checkout-api": "acme/mono", "orders": "acme/mono"}
+    )
+
+    assert [(d.id, d.service) for d in source.fetch({"checkout-api", "orders"}, START, END)] == [
+        ("gh-4", "checkout-api")
+    ]
+    assert (
+        _source({"acme/mono": [[]]}, repos={"orders": "acme/mono"}).fetch({"orders"}, START, END)
+        == []
+    )

@@ -3,8 +3,9 @@
 import json
 import logging
 import os
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from concurrent.futures import Future, ThreadPoolExecutor
+from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -31,6 +32,12 @@ DEFAULT_SCENARIO = "checkout_db_pool_exhaustion"
 LIVE_NOT_SUPPORTED = (
     "Live integrations are not supported yet; only fixture data can be investigated."
 )
+SPECIALIST_KINDS = {
+    "logs": "loki",
+    "metrics": "prometheus",
+    "dependency": "tempo",
+    "deploy": "github",
+}
 
 T = TypeVar("T")
 
@@ -67,6 +74,15 @@ class Agents:
 
 
 AgentsFactory = Callable[[Path], Agents]
+# (user_id, alert service) -> the user's agents over their live backends, closed after the run.
+LiveAgentsFactory = Callable[[UUID, str], AbstractContextManager[Agents]]
+
+
+def _llm() -> Any:
+    from tracehound.agents.inference import OllamaLLM
+
+    model = os.environ.get("OLLAMA_MODEL")
+    return OllamaLLM(model) if model else OllamaLLM()
 
 
 def fixture_agents(scenario: Path) -> Agents:
@@ -74,7 +90,6 @@ def fixture_agents(scenario: Path) -> Agents:
     from tracehound.agents.dependency import DependencyAgent
     from tracehound.agents.deploy import DeployAgent
     from tracehound.agents.hypothesis import HypothesisAgent
-    from tracehound.agents.inference import OllamaLLM
     from tracehound.agents.logs import LogsAgent
     from tracehound.agents.metrics import MetricsAgent
     from tracehound.agents.triage import TriageAgent
@@ -84,10 +99,9 @@ def fixture_agents(scenario: Path) -> Agents:
     from tracehound.tools.traces import FileTraceSource
     from tracehound.tools.triage import load_topology
 
-    model = os.environ.get("OLLAMA_MODEL")
-    llm = OllamaLLM(model) if model else OllamaLLM()
+    llm = _llm()
     return Agents(
-        triage=TriageAgent(scenario, llm),
+        triage=TriageAgent.from_scenario(scenario, llm),
         specialists={
             "logs": LogsAgent(FileLogSource(scenario), llm),
             "metrics": MetricsAgent(FileMetricSource(scenario), llm),
@@ -96,6 +110,58 @@ def fixture_agents(scenario: Path) -> Agents:
         },
         hypothesize=HypothesisAgent(llm),
     )
+
+
+class LiveSetupMissing(Exception):
+    """The user hasn't connected what a live investigation needs. The message says what."""
+
+
+class LiveAgents:
+    """Builds a user's agents over their own backends, as a `LiveAgentsFactory`.
+
+    Credentials come from their integrations; the dependency map, owners and per-service repos
+    come from their uploaded service catalog. Without a catalog, triage sees only the alerting
+    service.
+    """
+
+    def __init__(self, integrations: Any, catalogs: Any) -> None:
+        self._integrations = integrations  # IntegrationManagement
+        self._catalogs = catalogs  # CatalogStore
+
+    @contextmanager
+    def __call__(self, user_id: UUID, alert_service: str) -> Iterator[Agents]:
+        from tracehound.agents.dependency import DependencyAgent
+        from tracehound.agents.deploy import DeployAgent
+        from tracehound.agents.hypothesis import HypothesisAgent
+        from tracehound.agents.logs import LogsAgent
+        from tracehound.agents.metrics import MetricsAgent
+        from tracehound.agents.triage import TriageAgent
+        from tracehound.helpers.integration_client import live_sources
+        from tracehound.schemas.telemetry import Topology
+
+        connections = self._integrations.connections(user_id)
+        missing = sorted(k for k in SPECIALIST_KINDS.values() if k not in connections)
+        if missing:
+            raise LiveSetupMissing(f"Connect these integrations first: {', '.join(missing)}.")
+        catalog = self._catalogs.get(user_id)
+        topology = catalog.to_topology() if catalog else Topology(services=[], edges=[])
+        repos = {e.name: e.repository for e in catalog.entities if e.repository} if catalog else {}
+        services = {node.id for node in topology.services} | {alert_service}
+        with live_sources(connections, services, repos) as sources:
+            if sources.deploys is None:
+                raise LiveSetupMissing("Set a repository on the GitHub integration.")
+            assert sources.logs and sources.metrics and sources.traces  # all connected above
+            llm = _llm()
+            yield Agents(
+                triage=TriageAgent(topology, sources.deploys, llm),
+                specialists={
+                    "logs": LogsAgent(sources.logs, llm),
+                    "metrics": MetricsAgent(sources.metrics, llm),
+                    "deploy": DeployAgent(sources.deploys, llm),
+                    "dependency": DependencyAgent(sources.traces, topology, llm),
+                },
+                hypothesize=HypothesisAgent(llm),
+            )
 
 
 def fixture_user_ids() -> frozenset[UUID]:
@@ -128,12 +194,14 @@ class InvestigationRunner:
         fixture_users: frozenset[UUID] | None = None,
         scenario: Path | None = None,
         agents_factory: AgentsFactory = fixture_agents,
+        live_agents: LiveAgentsFactory | None = None,
         max_workers: int | None = None,
     ) -> None:
         self._store = store
         self._fixture_users = fixture_user_ids() if fixture_users is None else fixture_users
         self._scenario = scenario or fixture_scenario()
         self._agents_factory = agents_factory
+        self._live_agents = live_agents
         workers = max_workers or int(os.environ.get("INVESTIGATION_WORKERS", "2"))
         self._executor = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="investigation")
 
@@ -150,12 +218,21 @@ class InvestigationRunner:
         except Exception:
             logger.exception("Failed to mark incident %s running", incident.id)
             return
-        if user_id not in self._fixture_users:
+        fixture = user_id in self._fixture_users
+        if not fixture and self._live_agents is None:
             self._fail(incident.id, LIVE_NOT_SUPPORTED, {})
             return
         state: dict[str, Any] = {}
         try:
-            self._investigate(incident, state)
+            if fixture:
+                self._investigate_fixture(incident, state)
+            else:
+                assert self._live_agents is not None
+                with self._live_agents(user_id, incident.service_id) as agents:
+                    self._investigate(incident, incident, agents, state)
+        except LiveSetupMissing as exc:
+            self._fail(incident.id, str(exc), state)
+            return
         except Exception as exc:
             logger.exception("Investigation failed for incident %s", incident.id)
             self._fail(incident.id, _describe(exc), state)
@@ -184,8 +261,8 @@ class InvestigationRunner:
         except Exception:
             logger.exception("Failed to mark incident %s failed", incident_id)
 
-    def _investigate(self, incident: IncidentRecord, state: dict[str, Any]) -> None:
-        """Run the graph, copying each state snapshot into `state` so a failure keeps partials."""
+    def _investigate_fixture(self, incident: IncidentRecord, state: dict[str, Any]) -> None:
+        """Investigate the scenario's own alert over its files, whatever the incident says."""
         scenario = self._scenario
         alert = json.loads((scenario / "scenario.json").read_text())["alert"]
         # Scenario files have fixed timestamps, so investigate the scenario's own window.
@@ -197,7 +274,16 @@ class InvestigationRunner:
                 "trace_id": alert.get("trace_id"),
             }
         )
-        agents = self._agents_factory(scenario)
+        self._investigate(incident, graph_incident, self._agents_factory(scenario), state)
+
+    def _investigate(
+        self,
+        incident: IncidentRecord,
+        graph_incident: IncidentRecord,
+        agents: Agents,
+        state: dict[str, Any],
+    ) -> None:
+        """Run the graph, copying each state snapshot into `state` so a failure keeps partials."""
         graph = build_graph(
             self._tracked(incident.id, "triage", agents.triage),
             {

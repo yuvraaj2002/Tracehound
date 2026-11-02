@@ -158,12 +158,15 @@ class LiveSources:
 
 
 def live_sources(
-    connections: Mapping[IntegrationKind, Connection], services: Iterable[str]
+    connections: Mapping[IntegrationKind, Connection],
+    services: Iterable[str],
+    repos: Mapping[str, str] | None = None,
 ) -> LiveSources:
     """Build a source for each connected backend.
 
-    GitHub integrations name one repository, so every service in `services` is read from it;
-    deployments are told apart by the ``service`` key in their payload.
+    Deploys for a service are read from its repo in `repos` (from the service catalog), else
+    from the GitHub integration's repository; deployments sharing a repo are told apart by the
+    ``service`` key in their payload.
     """
     sources = LiveSources()
 
@@ -181,8 +184,12 @@ def live_sources(
     if "tempo" in connections:
         sources.traces = TempoTraceSource(client_for("tempo"))
     if "github" in connections:
-        repository = connections["github"].config.get("repository")
-        if repository:
-            repos = dict.fromkeys(services, repository)
-            sources.deploys = GitHubDeploySource(client_for("github"), repos=repos)
+        fallback = connections["github"].config.get("repository")
+        by_service = {
+            service: repo
+            for service in services
+            if (repo := (repos or {}).get(service) or fallback)
+        }
+        if by_service:
+            sources.deploys = GitHubDeploySource(client_for("github"), repos=by_service)
     return sources

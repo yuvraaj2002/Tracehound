@@ -1,4 +1,6 @@
-from datetime import UTC, datetime
+from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
@@ -10,7 +12,12 @@ from tracehound.schemas.finding import SpecialistReport
 from tracehound.schemas.hypothesis import Hypothesis
 from tracehound.schemas.investigation import AgentRun
 from tracehound.schemas.triage import InvestigationScope, Specialist, SpecialistTask
-from tracehound.worker.runner import LIVE_NOT_SUPPORTED, Agents, InvestigationRunner
+from tracehound.worker.runner import (
+    LIVE_NOT_SUPPORTED,
+    Agents,
+    InvestigationRunner,
+    LiveSetupMissing,
+)
 
 SCENARIO = Path(__file__).resolve().parents[2] / "scenarios" / "checkout_db_pool_exhaustion"
 FIXTURE_USER = uuid4()
@@ -162,3 +169,50 @@ def test_submit_runs_in_background() -> None:
 @pytest.fixture(autouse=True)
 def _scenario_exists() -> None:
     assert (SCENARIO / "scenario.json").exists()
+
+
+def _live_runner(store: StubStore, factory) -> InvestigationRunner:  # type: ignore[no-untyped-def]
+    return InvestigationRunner(
+        store,
+        fixture_users=frozenset({FIXTURE_USER}),
+        scenario=SCENARIO,
+        agents_factory=lambda _: pytest.fail("live users must not read scenario files"),
+        live_agents=factory,
+        max_workers=1,
+    )
+
+
+def test_live_user_runs_their_own_agents_over_the_submitted_window() -> None:
+    store = StubStore()
+    opened: list[tuple[UUID, str]] = []
+    closed: list[bool] = []
+
+    @contextmanager
+    def factory(user_id: UUID, alert: str) -> Iterator[Agents]:
+        opened.append((user_id, alert))
+        yield _agents()
+        closed.append(True)
+
+    incident = _incident()
+    incident = incident.model_copy(
+        update={"window_start": incident.window_end - timedelta(minutes=10)}
+    )
+    user = uuid4()
+    _live_runner(store, factory).run(incident, user)
+    assert [name for name, _ in store.calls] == ["start", "complete"]
+    assert opened == [(user, "anything")] and closed == [True]
+    scope = store.calls[1][1][0]
+    assert (scope.alert_service, scope.symptom_window_start) == ("anything", incident.window_start)
+
+
+def test_live_setup_missing_fails_with_its_reason() -> None:
+    store = StubStore()
+
+    @contextmanager
+    def factory(user_id: UUID, alert: str) -> Iterator[Agents]:
+        raise LiveSetupMissing("Connect these integrations first: tempo.")
+        yield _agents()
+
+    _live_runner(store, factory).run(_incident(), uuid4())
+    assert store.calls[-1] == ("fail", ("Connect these integrations first: tempo.", None))
+    assert store.agents == {}
