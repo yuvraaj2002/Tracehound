@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent, type RefObject } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type RefObject } from 'react'
 import { Link } from 'react-router'
-import { ApiError, getCatalog, putCatalog, type CatalogEdge, type CatalogEntity, type CatalogSummary } from '../lib/api'
+import { ApiError, getCatalog, getCatalogSample, putCatalog, validateCatalog, type CatalogEdge, type CatalogEntity, type CatalogGraphData, type CatalogSample, type CatalogSummary } from '../lib/api'
+import CatalogGraph from '../CatalogGraph'
 import Dialog from '../Dialog'
 import SetupTabs from '../SetupTabs'
 import SignedInHeader from '../SignedInHeader'
@@ -44,6 +45,7 @@ const fetchCatalog = (): Promise<Load> => getCatalog().then(
 export default function Catalog() {
   const [load, setLoad] = useState<Load>({ status: 'loading' })
   const [editing, setEditing] = useState(false)
+  const [sampleOpen, setSampleOpen] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
   const heading = useRef<HTMLHeadingElement>(null)
 
@@ -70,34 +72,74 @@ export default function Catalog() {
 
   return (
     <>
-      <div className="auth-page" inert={editing}>
+      <div className="auth-page" inert={sampleOpen}>
         <SignedInHeader />
 
         <main className="workspace">
           <Link className="back-link" to="/app"><span aria-hidden="true">←</span> Home</Link>
           <SetupTabs />
-          <div className="workspace-heading">
-            <div><p className="eyebrow"><span /> Topology</p><h1 ref={heading} tabIndex={-1}>Service catalog</h1><p className="heading-note">Your Backstage <code>catalog-info.yaml</code>. Triage reads it to know which services call which, and who owns each one.</p></div>
-            {catalog && <button type="button" className="button-primary" onClick={() => setEditing(true)}>Replace catalog</button>}
+          <div className="workspace-heading catalog-heading">
+            <h1 ref={heading} tabIndex={-1}>Service catalog</h1>
+            <div className="catalog-heading-actions">
+              {catalog && !editing && <button type="button" className="button-quiet" onClick={() => setEditing(true)}>Edit</button>}
+              <button type="button" className="button-quiet" onClick={() => setSampleOpen(true)}>View sample</button>
+            </div>
           </div>
 
           <section className="catalog" aria-labelledby="catalog-title" aria-busy={load.status === 'loading'}>
-            <h2 id="catalog-title" className="sr-only">Catalog</h2>
+            <div className="catalog-section-head">
+              <h2 id="catalog-title">Your catalog</h2>
+            </div>
             {load.status === 'loading' && <><p className="sr-only" role="status">Loading the catalog</p><div className="skeleton catalog-skeleton" aria-hidden="true" /></>}
             {load.status === 'error' && <div className="notice" role="status">
               <div><p className="notice-title">Couldn’t load your catalog</p><p>{load.message}</p></div>
               <button type="button" className="button-quiet" onClick={retry}>Retry</button>
             </div>}
-            {load.status === 'empty' && <EmptyCatalog onStart={() => setEditing(true)} />}
-            {catalog && <CatalogView catalog={catalog} />}
+            {load.status === 'empty' && !editing && <EmptyCatalog onStart={() => setEditing(true)} />}
+            {editing ? <CatalogEditor current={catalog?.source} onSaved={onSaved} onClose={() => setEditing(false)} /> : catalog && <CatalogView catalog={catalog} />}
           </section>
         </main>
       </div>
 
       <div className="toast-region" role="status" aria-live="polite">{status && <p className="toast">{status}</p>}</div>
 
-      {editing && <CatalogDialog current={catalog?.source} fallbackFocus={heading} onSaved={onSaved} onClose={() => setEditing(false)} />}
+      {sampleOpen && <SampleDialog fallbackFocus={heading} onClose={() => setSampleOpen(false)} />}
     </>
+  )
+}
+
+type SampleLoad = { status: 'loading' } | { status: 'ready', sample: CatalogSample } | { status: 'error', message: string }
+
+/** An example catalog-info.yaml and the graph Tracehound draws from it. Read-only: nothing here is saved. */
+function SampleDialog({ fallbackFocus, onClose }: { fallbackFocus: RefObject<HTMLElement | null>, onClose: () => void }) {
+  const [load, setLoad] = useState<SampleLoad>({ status: 'loading' })
+
+  const fetchSample = () => getCatalogSample().then(
+    (sample): SampleLoad => ({ status: 'ready', sample }),
+    (err: unknown): SampleLoad => ({ status: 'error', message: message(err, 'Could not load the sample.') }),
+  )
+  useEffect(() => {
+    let active = true
+    void fetchSample().then((next) => { if (active) setLoad(next) })
+    return () => { active = false }
+  }, [])
+
+  const retry = () => { setLoad({ status: 'loading' }); void fetchSample().then(setLoad) }
+
+  return (
+    <Dialog labelledBy="catalog-sample-title" describedBy="catalog-sample-intro" onDismiss={onClose} fallbackFocus={fallbackFocus} wide>
+      <div className="sample-dialog" aria-busy={load.status === 'loading'}>
+        <h2 id="catalog-sample-title">Sample catalog</h2>
+        <p id="catalog-sample-intro">A small checkout platform, to show the format and the map Tracehound builds from it. Nothing here is saved to your account.</p>
+        {load.status === 'loading' && <><p className="sr-only" role="status">Loading the sample</p><div className="skeleton catalog-skeleton" aria-hidden="true" /></>}
+        {load.status === 'error' && <div className="notice" role="status">
+          <div><p className="notice-title">Couldn’t load the sample</p><p>{load.message}</p></div>
+          <button type="button" className="button-quiet" onClick={retry}>Retry</button>
+        </div>}
+        {load.status === 'ready' && <CatalogViews entities={load.sample.entities} edges={load.sample.edges} source={load.sample.source} label="Sample" />}
+        <div className="dialog-actions"><button type="button" className="button-primary" onClick={onClose} autoFocus>Close</button></div>
+      </div>
+    </Dialog>
   )
 }
 
@@ -111,143 +153,158 @@ function EmptyCatalog({ onStart }: { onStart: () => void }) {
   )
 }
 
-function CatalogView({ catalog }: { catalog: CatalogSummary }) {
-  const services = catalog.entities.filter((entity) => entity.entity_kind === 'Component')
-  const resources = catalog.entities.filter((entity) => entity.entity_kind === 'Resource')
-  const ignored = Object.entries(catalog.ignored)
+/** The graph and the file, one at a time. Shared by the user's catalog and the sample. */
+function CatalogViews({ entities, edges, source, label, meta }: { entities: CatalogEntity[], edges: CatalogEdge[], source: string, label: string, meta?: string }) {
+  const [view, setView] = useState<'graph' | 'yaml'>('graph')
+  const [copied, setCopied] = useState<'done' | 'failed' | null>(null)
+
+  useEffect(() => {
+    if (!copied) return
+    const timer = setTimeout(() => setCopied(null), 2000)
+    return () => clearTimeout(timer)
+  }, [copied])
+
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(source); setCopied('done') } catch { setCopied('failed') }
+  }
 
   return (
     <>
-      <p className="catalog-meta">
-        <span><strong>{services.length}</strong> {services.length === 1 ? 'service' : 'services'}</span>
-        <span><strong>{resources.length}</strong> {resources.length === 1 ? 'resource' : 'resources'}</span>
-        <span><strong>{catalog.edges.length}</strong> {catalog.edges.length === 1 ? 'dependency' : 'dependencies'}</span>
-        <span>Updated {formatDateTime(catalog.updated_at)}</span>
-      </p>
-      {ignored.length > 0 && <p className="catalog-ignored">Also read, but not part of the graph: {ignored.map(([kind, count]) => `${count} ${kind}`).join(', ')}.</p>}
-
-      <EntityGroup title="Services" entities={services} edges={catalog.edges} all={catalog.entities} />
-      <EntityGroup title="Resources" entities={resources} edges={catalog.edges} all={catalog.entities} />
-
-      <details className="catalog-source">
-        <summary>View <code>catalog-info.yaml</code></summary>
-        <pre><code>{catalog.source}</code></pre>
-      </details>
+      <div className="catalog-views-bar">
+        <div className="catalog-sample-tabs" role="group" aria-label={`${label} view`}>
+          <button type="button" className="button-quiet" aria-pressed={view === 'graph'} onClick={() => setView('graph')}>Graph</button>
+          <button type="button" className="button-quiet" aria-pressed={view === 'yaml'} onClick={() => setView('yaml')}>catalog-info.yaml</button>
+        </div>
+        {meta && <p className="catalog-views-meta">{meta}</p>}
+        {view === 'yaml' && <button type="button" className="editor-link" onClick={() => void copy()}>{copied === 'done' ? 'Copied' : copied === 'failed' ? 'Press ⌘C to copy' : 'Copy'}</button>}
+        <span className="sr-only" role="status">{copied === 'done' ? 'Copied to clipboard' : ''}</span>
+      </div>
+      {view === 'graph' ? <CatalogGraph entities={entities} edges={edges} /> : <pre className="catalog-sample-source" tabIndex={0}><code>{source}</code></pre>}
     </>
   )
 }
 
-function EntityGroup({ title, entities, edges, all }: { title: string, entities: CatalogEntity[], edges: CatalogEdge[], all: CatalogEntity[] }) {
-  if (!entities.length) return null
-  const id = `catalog-${title.toLowerCase()}`
-  return (
-    <section className="catalog-group" aria-labelledby={id}>
-      <h3 id={id} className="catalog-group-title">{title}</h3>
-      <ul>
-        {entities.map((entity) => <EntityCard key={entity.name} entity={entity} calls={edges.filter((edge) => edge.source === entity.name)} calledBy={edges.filter((edge) => edge.target === entity.name)} all={all} />)}
-      </ul>
-    </section>
-  )
+function CatalogView({ catalog }: { catalog: CatalogSummary }) {
+  const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+  const services = catalog.entities.filter((entity) => entity.entity_kind === 'Component').length
+  const meta = [count(services, 'service', 'services'), count(catalog.entities.length - services, 'resource', 'resources'), count(catalog.edges.length, 'dependency', 'dependencies'), `Updated ${formatDateTime(catalog.updated_at)}`].join(' · ')
+  return <CatalogViews entities={catalog.entities} edges={catalog.edges} source={catalog.source} label="Your catalog" meta={meta} />
 }
 
-function EntityCard({ entity, calls, calledBy, all }: { entity: CatalogEntity, calls: CatalogEdge[], calledBy: CatalogEdge[], all: CatalogEntity[] }) {
-  const isService = entity.entity_kind === 'Component'
-  const color = isService ? 'var(--color-primary)' : 'var(--agent-dependency)'
-  const kindOf = (name: string) => all.find((item) => item.name === name)?.entity_kind === 'Resource' ? 'is-resource' : 'is-service'
-  return (
-    <li className="source catalog-entity" style={{ '--source-color': color } as CSSProperties} aria-labelledby={`entity-${entity.name}`}>
-      <div className="source-identity">
-        <p className="eyebrow"><span /> {isService ? 'Service' : 'Resource'} · {entity.kind}</p>
-        <h3 id={`entity-${entity.name}`}><code>{entity.name}</code>{entity.title && <span className="catalog-title-alt">{entity.title}</span>}</h3>
-        {entity.description && <p className="source-description">{entity.description}</p>}
-      </div>
+const PREVIEW_DELAY_MS = 400
 
-      {(calls.length > 0 || calledBy.length > 0) && <div className="catalog-links">
-        {calls.length > 0 && <div><span className="catalog-links-label">Depends on</span><ul>{calls.map((edge) => <li key={edge.target} className={`catalog-chip ${kindOf(edge.target)}`}><span aria-hidden="true">→</span> <code>{edge.target}</code> <span className="catalog-protocol">{edge.protocol}</span></li>)}</ul></div>}
-        {calledBy.length > 0 && <div><span className="catalog-links-label">Used by</span><ul>{calledBy.map((edge) => <li key={edge.source} className={`catalog-chip ${kindOf(edge.source)}`}><span aria-hidden="true">←</span> <code>{edge.source}</code></li>)}</ul></div>}
-      </div>}
+type Preview = { status: 'idle' | 'checking' } | { status: 'valid' } | { status: 'invalid', problems: string[] } | { status: 'failed', message: string }
 
-      <dl className="source-details catalog-details">
-        <div><dt>Owner</dt><dd><code>{entity.owner}</code></dd></div>
-        <div><dt>Type</dt><dd>{entity.type}</dd></div>
-        <div><dt>System</dt><dd>{entity.system ? <code>{entity.system}</code> : '—'}</dd></div>
-        <div><dt>Lifecycle</dt><dd>{entity.lifecycle ?? '—'}</dd></div>
-        {isService && <div><dt>Repository</dt><dd>{entity.repository ? <code>{entity.repository}</code> : '—'}</dd></div>}
-      </dl>
-    </li>
-  )
-}
-
-/** Paste or upload a catalog-info.yaml. A file is read in the browser and sent as text. */
-function CatalogDialog({ current, fallbackFocus, onSaved, onClose }: { current?: string, fallbackFocus: RefObject<HTMLElement | null>, onSaved: (catalog: CatalogSummary) => void, onClose: () => void }) {
+/**
+ * Inline on the page: write or paste a catalog-info.yaml on the left and see the graph it describes on the right.
+ * The server checks the text as you type; Save sends it to PUT and is only offered once it is valid.
+ */
+function CatalogEditor({ current, onSaved, onClose }: { current?: string, onSaved: (catalog: CatalogSummary) => void, onClose: () => void }) {
   const [text, setText] = useState(current ?? '')
   const [fileName, setFileName] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [problems, setProblems] = useState<string[]>([])
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saveProblems, setSaveProblems] = useState<string[]>([])
+  const [graph, setGraph] = useState<CatalogGraphData | null>(null)
+  const [preview, setPreview] = useState<Preview>({ status: 'idle' })
   const fileInput = useRef<HTMLInputElement>(null)
 
   const size = new Blob([text]).size
   const tooLarge = size > MAX_BYTES
   const unchanged = current !== undefined && text === current
-  const complete = text.trim().length > 0 && !tooLarge && !unchanged
+  const blank = text.trim().length === 0
+
+  // Check the text shortly after typing stops. A newer edit makes an older answer stale.
+  useEffect(() => {
+    if (blank || tooLarge) return
+    let active = true
+    const timer = setTimeout(() => {
+      setPreview({ status: 'checking' })
+      validateCatalog(text).then(
+        (result) => { if (active) { setGraph(result); setPreview({ status: 'valid' }) } },
+        (err: unknown) => {
+          if (!active) return
+          setPreview(err instanceof ApiError && err.status === 422 && err.problems.length ? { status: 'invalid', problems: err.problems } : { status: 'failed', message: message(err, 'Could not check the catalog.') })
+        },
+      )
+    }, PREVIEW_DELAY_MS)
+    return () => { active = false; clearTimeout(timer) }
+  }, [text, blank, tooLarge])
+
+  const edit = (next: string, name: string | null = null) => {
+    setText(next)
+    setFileName(name)
+    setSaveError(null)
+    setSaveProblems([])
+    setPreview(next.trim() ? { status: 'checking' } : { status: 'idle' })
+  }
 
   const onFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     event.target.value = ''  // picking the same file again still fires change
     if (!file) return
-    if (file.size > MAX_BYTES) { setError(`${file.name} is over 1 MB.`); return }
-    setText(await file.text())
-    setFileName(file.name)
-    setError(null)
-    setProblems([])
+    if (file.size > MAX_BYTES) { setSaveError(`${file.name} is over 1 MB.`); return }
+    edit(await file.text(), file.name)
   }
+
+  const valid = preview.status === 'valid' && !blank && !tooLarge
+  const canSave = valid && !unchanged && !submitting
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!complete || submitting) return
+    if (!canSave) return
     setSubmitting(true)
-    setError(null)
-    setProblems([])
+    setSaveError(null)
+    setSaveProblems([])
     try {
       onSaved(await putCatalog(text))
     } catch (err) {
       if (err instanceof ApiError && err.status === 422 && err.problems.length) {
-        setError(err.problems.length === 1 ? 'The catalog has a problem:' : `The catalog has ${err.problems.length} problems:`)
-        setProblems(err.problems)
-      } else setError(message(err, 'Could not save the catalog.'))
+        setSaveError(err.problems.length === 1 ? 'The catalog has a problem:' : `The catalog has ${err.problems.length} problems:`)
+        setSaveProblems(err.problems)
+      } else setSaveError(message(err, 'Could not save the catalog.'))
       setSubmitting(false)
     }
   }
 
+  const problems = preview.status === 'invalid' ? preview.problems : []
+  const stale = preview.status === 'invalid' || preview.status === 'failed'
+  const summary = graph && `${graph.entities.length} ${graph.entities.length === 1 ? 'entity' : 'entities'}, ${graph.edges.length} ${graph.edges.length === 1 ? 'dependency' : 'dependencies'}`
+
   return (
-    <Dialog labelledBy="catalog-dialog-title" describedBy="catalog-dialog-intro" onDismiss={submitting ? null : onClose} fallbackFocus={fallbackFocus} wide>
-      <form className="dialog-form catalog-form" onSubmit={submit} noValidate>
-        <h2 id="catalog-dialog-title">{current === undefined ? 'Add your catalog' : 'Replace your catalog'}</h2>
-        <p id="catalog-dialog-intro">Upload or paste a Backstage <code>catalog-info.yaml</code>. Separate entities with <code>---</code>. Saving replaces the whole catalog.</p>
-
-        <div className="catalog-file">
-          <input ref={fileInput} type="file" accept=".yaml,.yml,application/yaml,text/yaml" onChange={(event) => void onFile(event)} hidden />
-          <button type="button" className="button-quiet" onClick={() => fileInput.current?.click()}>Choose file…</button>
-          <span className="field-hint">{fileName ? <>Loaded <code>{fileName}</code></> : 'or paste below'}</span>
-          {!text && <button type="button" className="button-quiet catalog-example" onClick={() => setText(EXAMPLE)}>Start from an example</button>}
+    <form className="editor-inline" onSubmit={submit} noValidate aria-label={current === undefined ? 'Add your catalog' : 'Edit your catalog'}>
+      <div className="editor-split">
+        <div className="editor-pane">
+          <div className="editor-bar">
+            <input ref={fileInput} type="file" accept=".yaml,.yml,application/yaml,text/yaml" onChange={(event) => void onFile(event)} hidden />
+            <button type="button" className="button-quiet" onClick={() => fileInput.current?.click()}>{fileName ?? 'Upload file'}</button>
+            {blank && <button type="button" className="button-quiet" onClick={() => edit(EXAMPLE)}>Use example</button>}
+          </div>
+          <textarea id="catalog-yaml" className="catalog-editor" aria-label="catalog-info.yaml" value={text} onChange={(event) => edit(event.target.value)} spellCheck={false} autoComplete="off" autoCapitalize="off" placeholder="Paste your catalog-info.yaml" aria-invalid={problems.length || tooLarge ? true : undefined} autoFocus />
+          {saveError && <div className="form-error" role="alert">
+            <p>{saveError}</p>
+            {saveProblems.length > 0 && <ul className="catalog-problems">{saveProblems.map((problem) => <li key={problem}>{problem}</li>)}</ul>}
+          </div>}
+          <div className="editor-actions">
+            <button type="button" className="button-quiet" onClick={onClose} disabled={submitting}>Cancel</button>
+            <button type="submit" className="button-primary" disabled={!canSave}>{submitting ? 'Saving…' : 'Save'}</button>
+          </div>
         </div>
 
-        <div className="connect-field">
-          <label htmlFor="catalog-yaml">catalog-info.yaml</label>
-          <textarea id="catalog-yaml" className="catalog-editor" value={text} onChange={(event) => { setText(event.target.value); setFileName(null) }} spellCheck={false} autoComplete="off" autoCapitalize="off" rows={16} placeholder="apiVersion: backstage.io/v1alpha1" aria-describedby="catalog-yaml-hint" aria-invalid={problems.length || tooLarge ? true : undefined} autoFocus />
-          <p id="catalog-yaml-hint" className={tooLarge ? 'field-hint is-error' : 'field-hint'}>{tooLarge ? 'Over the 1 MB limit.' : `${(size / 1024).toFixed(1)} KB of 1 MB`}</p>
+        <div className="editor-pane editor-preview">
+          <div className="editor-bar">
+            <p className={`editor-status is-${preview.status}`} aria-live="polite">
+              {preview.status === 'checking' && 'Checking…'}
+              {preview.status === 'valid' && `Valid${summary ? ` · ${summary}` : ''}`}
+              {preview.status === 'invalid' && `${problems.length} ${problems.length === 1 ? 'problem' : 'problems'}`}
+              {preview.status === 'failed' && preview.message}
+              {tooLarge && 'Over the 1 MB limit'}
+            </p>
+          </div>
+          {graph && !blank ? <div className={stale ? 'editor-graph is-stale' : 'editor-graph'}><CatalogGraph entities={graph.entities} edges={graph.edges} /></div> : <div className="editor-empty">{blank ? 'The graph appears here' : ''}</div>}
+          {problems.length > 0 && <ul className="catalog-problems form-error">{problems.map((problem) => <li key={problem}>{problem}</li>)}</ul>}
         </div>
-
-        {error && <div className="form-error" role="alert">
-          <p>{error}</p>
-          {problems.length > 0 && <ul className="catalog-problems">{problems.map((problem) => <li key={problem}>{problem}</li>)}</ul>}
-        </div>}
-        <div className="dialog-actions">
-          <button type="button" className="button-quiet" onClick={onClose} disabled={submitting}>Cancel</button>
-          <button type="submit" className="button-primary" disabled={!complete || submitting}>{submitting ? 'Saving…' : unchanged ? 'No changes' : 'Save catalog'}</button>
-        </div>
-      </form>
-    </Dialog>
+      </div>
+    </form>
   )
 }

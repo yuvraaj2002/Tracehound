@@ -318,3 +318,15 @@ export const getCatalog = () => apiFetch<CatalogSummary>('/v1/catalog')
 
 /** Replaces the catalog. An invalid file rejects with a 422 ApiError whose `problems` lists every issue. */
 export const putCatalog = (yaml: string) => apiFetch<CatalogSummary>('/v1/catalog', { method: 'PUT', body: yaml, headers: { 'Content-Type': 'application/yaml' } })
+
+/** An example catalog: the same parsed shape as {@link CatalogSummary}, but nothing is saved and there is no `updated_at`. */
+export type CatalogSample = Omit<CatalogSummary, 'updated_at'>
+
+/** The bundled example catalog-info.yaml with the graph Tracehound reads from it. */
+export const getCatalogSample = () => apiFetch<CatalogSample>('/v1/catalog/sample')
+
+/** The graph a catalog describes, without the stored file or timestamp. */
+export type CatalogGraphData = Pick<CatalogSummary, 'entities' | 'edges' | 'ignored'>
+
+/** Checks a catalog and returns its graph without saving. An invalid one rejects with a 422 ApiError listing every problem. */
+export const validateCatalog = (yaml: string) => apiFetch<CatalogGraphData>('/v1/catalog/validate', { method: 'POST', body: yaml, headers: { 'Content-Type': 'application/yaml' } })

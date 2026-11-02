@@ -200,3 +200,58 @@ def test_an_invalid_entity_still_has_its_dependencies_checked() -> None:
         "Component checkout-api: spec.owner is required",
         "checkout-api: spec.dependsOn names resource:orders-dbb, which isn't in this catalog",
     ]
+
+
+# Sample
+
+
+def test_sample_catalog_is_valid_and_has_a_graph() -> None:
+    from tracehound.helpers.catalog_helper import sample_catalog
+
+    sample = sample_catalog()
+    assert sample.edges
+    assert {e.entity_kind for e in sample.entities} == {"Component", "Resource"}
+    assert sample.ignored == {"Group": 2, "System": 1}
+    assert "kind: Component" in sample.source
+
+
+def test_sample_endpoint_returns_it_without_saving(
+    client: TestClient, catalogs: MemoryCatalogs
+) -> None:
+    response = client.get("/v1/catalog/sample", headers=_auth())
+    assert response.status_code == 200
+    body = response.json()
+    assert body["entities"] and body["edges"] and body["source"]
+    assert client.get("/v1/catalog", headers=_auth()).status_code == 404
+
+
+def test_sample_endpoint_needs_a_session(client: TestClient) -> None:
+    assert client.get("/v1/catalog/sample").status_code == 401
+
+
+# Validate
+
+
+def test_validate_returns_the_graph_and_saves_nothing(client: TestClient) -> None:
+    response = client.post(
+        "/v1/catalog/validate",
+        content=CATALOG,
+        headers={**_auth(), "Content-Type": "application/yaml"},
+    )
+    assert response.status_code == 200
+    assert {e["name"] for e in response.json()["entities"]} == {
+        "checkout-api",
+        "orders",
+        "orders-db",
+    }
+    assert client.get("/v1/catalog", headers=_auth()).status_code == 404
+
+
+def test_validate_reports_every_problem_and_needs_a_session(client: TestClient) -> None:
+    bad = CATALOG.replace("orders-db, component:orders]", "orders-db, component:nope]")
+    response = client.post(
+        "/v1/catalog/validate", content=bad, headers={**_auth(), "Content-Type": "application/yaml"}
+    )
+    assert response.status_code == 422
+    assert isinstance(response.json()["detail"], list)
+    assert client.post("/v1/catalog/validate", content=CATALOG).status_code == 401

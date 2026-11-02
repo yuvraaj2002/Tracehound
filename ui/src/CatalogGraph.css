@@ -1,0 +1,54 @@
+/* Catalog dependency graph: an SVG canvas with a details panel beside it. */
+.graph { display: grid; gap: 12px; container-type: inline-size; }
+.graph-canvas { width: 100%; height: auto; min-height: 280px; border: 1px solid var(--color-line); border-radius: 12px; background: var(--color-soft); touch-action: none; user-select: none; cursor: grab; }
+.graph-canvas:active { cursor: grabbing; }
+
+.graph-edge { fill: none; stroke: var(--color-muted); stroke-width: 1.4; opacity: .55; transition: opacity .15s, stroke .15s; }
+.graph-edge.is-lit { stroke: var(--color-primary); stroke-width: 2; opacity: 1; }
+.graph-edge.is-dim { opacity: .12; }
+
+.graph-node { cursor: grab; outline: none; transition: opacity .15s; --node-color: var(--color-primary); }
+.graph-node:active { cursor: grabbing; }
+.graph-node.is-resource { --node-color: var(--agent-dependency); }
+.graph-node > rect:first-child { fill: var(--color-bg); stroke: color-mix(in srgb, var(--node-color) 45%, var(--color-line)); stroke-width: 1.2; transition: stroke .15s, stroke-width .15s; }
+.graph-node-bar { fill: var(--node-color); }
+.graph-node.is-lit > rect:first-child, .graph-node:focus-visible > rect:first-child { stroke: var(--node-color); stroke-width: 2; }
+.graph-node.is-pinned > rect:first-child { stroke: var(--node-color); stroke-width: 2.5; }
+.graph-node:focus-visible > rect:first-child { stroke-dasharray: 4 3; }
+.graph-node.is-dim { opacity: .3; }
+.graph-node-name { font: var(--weight-medium) var(--text-sm) var(--font-mono); fill: var(--color-ink); pointer-events: none; }
+.graph-node-meta { font: var(--text-2xs) var(--font-sans); letter-spacing: .04em; fill: var(--color-muted); pointer-events: none; }
+
+.graph-stage { position: relative; }
+.graph-reset { position: absolute; left: 12px; bottom: 12px; padding: 4px 10px; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-bg); color: var(--color-muted); font: inherit; font-size: var(--text-xs); cursor: pointer; }
+.graph-reset:hover { color: var(--color-ink); }
+
+/* Details float over the canvas, and only once a node is pinned. */
+.graph-detail { position: absolute; top: 12px; right: 12px; display: grid; gap: 6px; width: min(260px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow-y: auto; padding: 14px; border: 1px solid var(--color-line); border-radius: 10px; background: var(--color-bg); box-shadow: 0 8px 24px rgb(0 0 0 / .18); }
+.graph-detail h3 { margin: 0; padding-right: 20px; font-size: var(--text-base); overflow-wrap: anywhere; }
+.graph-detail code { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-ink); }
+.graph-detail-kind, .graph-detail-note { margin: 0; font-size: var(--text-xs); color: var(--color-muted); line-height: var(--leading-snug); }
+.graph-detail dl { display: grid; gap: 8px; margin: 6px 0 0; }
+.graph-detail dl div { display: grid; gap: 2px; }
+.graph-detail dt { font-size: var(--text-2xs); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--color-muted); }
+.graph-detail dd { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 0; font-size: var(--text-sm); }
+.graph-detail-close { position: absolute; top: 6px; right: 8px; border: 0; background: none; color: var(--color-muted); font-size: 18px; line-height: 1; cursor: pointer; }
+.graph-detail-close:hover { color: var(--color-ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  .graph-edge, .graph-node, .graph-node > rect:first-child { transition: none; }
+}
+
+.graph-full { position: absolute; top: 12px; left: 12px; display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-bg); color: var(--color-muted); cursor: pointer; }
+.graph-full:hover { color: var(--color-ink); }
+.graph-stage:fullscreen { background: var(--color-bg); }
+.graph-stage:fullscreen .graph-canvas { height: 100vh; border: 0; border-radius: 0; }
+.graph-stage:fullscreen .graph-full { top: 16px; left: 16px; }
+.graph-stage:fullscreen .graph-detail { top: 16px; right: 16px; }
+
+.graph-zoom { position: absolute; right: 12px; bottom: 12px; display: grid; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-bg); overflow: hidden; }
+.graph-zoom button { display: grid; place-items: center; width: 30px; height: 28px; border: 0; background: none; color: var(--color-muted); font: inherit; font-size: 16px; line-height: 1; cursor: pointer; }
+.graph-zoom button + button { border-top: 1px solid var(--color-line); }
+.graph-zoom button:hover:not(:disabled) { color: var(--color-ink); background: var(--color-soft); }
+.graph-zoom button:disabled { opacity: .4; cursor: default; }
+.graph-stage:fullscreen .graph-zoom { right: 16px; bottom: 16px; }

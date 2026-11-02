@@ -2,6 +2,8 @@
 
 import re
 from collections import Counter
+from functools import cache
+from importlib.resources import files
 from typing import Any
 from uuid import UUID
 
@@ -11,7 +13,12 @@ from sqlalchemy.dialects.postgresql import insert
 
 from tracehound.db import SessionFactory
 from tracehound.models import ServiceCatalogRow
-from tracehound.schemas.catalog import CatalogEntity, CatalogSummary, ServiceCatalog
+from tracehound.schemas.catalog import (
+    CatalogEntity,
+    CatalogSample,
+    CatalogSummary,
+    ServiceCatalog,
+)
 from tracehound.schemas.telemetry import Edge
 
 MAX_CATALOG_BYTES = 1_048_576  # matches the column check
@@ -157,6 +164,13 @@ def parse_catalog(source: str) -> ServiceCatalog:
         edges=sorted(edges.values(), key=lambda e: (e.source, e.target)),
         ignored=dict(sorted(ignored.items())),
     )
+
+
+@cache
+def sample_catalog() -> CatalogSample:
+    """The bundled example ``catalog-info.yaml``, parsed the same way an upload is."""
+    source = files("tracehound.resources").joinpath("catalog-info.yaml").read_text("utf-8")
+    return CatalogSample(source=source, **parse_catalog(source).model_dump())
 
 
 class CatalogStore:

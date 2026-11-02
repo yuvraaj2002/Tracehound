@@ -1,0 +1,163 @@
+# Sample Backstage catalog for Tracehound: a small checkout platform.
+#
+# Each document (separated by ---) is one entity.
+#   Component  a service you run. Becomes a node in the graph.
+#   Resource   a database, queue or cache a service depends on. Also a node.
+#   System / Group are read for context but are not graph nodes.
+#
+# Edges come from spec.dependsOn: "A dependsOn B" means A calls B.
+# Replace the names below with your own and upload the file.
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: team-checkout
+spec:
+  type: team
+  children: []
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: team-platform
+spec:
+  type: team
+  children: []
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: checkout
+  description: Everything involved in taking an order and a payment.
+spec:
+  owner: group:team-checkout
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: checkout-web
+  title: Checkout web
+  description: The storefront customers check out from.
+  annotations:
+    github.com/project-slug: acme/checkout-web
+spec:
+  type: website
+  lifecycle: production
+  owner: group:team-checkout
+  system: checkout
+  dependsOn:
+    - component:checkout-api
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: checkout-api
+  title: Checkout API
+  description: Front door for the storefront; fans out to orders and payments.
+  annotations:
+    github.com/project-slug: acme/checkout-api
+spec:
+  type: service
+  lifecycle: production
+  owner: group:team-checkout
+  system: checkout
+  dependsOn:
+    - component:orders-api
+    - component:payments-api
+    - resource:session-cache
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: orders-api
+  title: Orders API
+  description: Creates and tracks orders, and publishes an event for each one.
+  annotations:
+    github.com/project-slug: acme/orders-api
+spec:
+  type: service
+  lifecycle: production
+  owner: group:team-checkout
+  system: checkout
+  dependsOn:
+    - resource:orders-db
+    - resource:orders-queue
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: payments-api
+  title: Payments API
+  description: Charges cards and records the result.
+  annotations:
+    github.com/project-slug: acme/payments-api
+spec:
+  type: service
+  lifecycle: production
+  owner: group:team-payments
+  system: checkout
+  dependsOn:
+    - resource:payments-db
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: notifications-worker
+  title: Notifications worker
+  description: Sends order emails from the orders queue.
+  annotations:
+    github.com/project-slug: acme/notifications-worker
+spec:
+  type: service
+  lifecycle: production
+  owner: group:team-platform
+  system: checkout
+  dependsOn:
+    - resource:orders-queue
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: orders-db
+  description: Orders and line items.
+  annotations:
+    tracehound.dev/kind: postgres
+spec:
+  type: database
+  owner: group:team-platform
+  system: checkout
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: payments-db
+  description: Payment attempts and receipts.
+  annotations:
+    tracehound.dev/kind: postgres
+spec:
+  type: database
+  owner: group:team-platform
+  system: checkout
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: orders-queue
+  description: Order events for downstream consumers.
+  annotations:
+    tracehound.dev/kind: kafka
+spec:
+  type: queue
+  owner: group:team-platform
+  system: checkout
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: session-cache
+  description: Short-lived checkout sessions.
+  annotations:
+    tracehound.dev/kind: redis
+spec:
+  type: cache
+  owner: group:team-platform
+  system: checkout

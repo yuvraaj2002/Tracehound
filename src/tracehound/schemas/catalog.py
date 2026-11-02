@@ -55,3 +55,9 @@ class CatalogSummary(ServiceCatalog):
 
     source: str
     updated_at: AwareDatetime
+
+
+class CatalogSample(ServiceCatalog):
+    """Response for ``GET /v1/catalog/sample``: an example catalog and the file it came from."""
+
+    source: str
