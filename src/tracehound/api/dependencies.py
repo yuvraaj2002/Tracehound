@@ -8,6 +8,7 @@ from psycopg_pool import ConnectionPool
 
 from tracehound.auth import InvalidToken, TokenVerifier, User
 from tracehound.helpers.api_key_helper import ApiKeyManagement
+from tracehound.helpers.catalog_helper import CatalogStore
 from tracehound.helpers.incident_helper import IncidentHelper
 from tracehound.helpers.integration_helper import IntegrationManagement
 from tracehound.helpers.investigation_helper import InvestigationStore
@@ -46,6 +47,11 @@ def get_investigation_store(pool: PoolDep) -> InvestigationStore:
     return InvestigationStore(pool)
 
 
+def get_catalog_store(pool: PoolDep) -> CatalogStore:
+    """Build the service catalog store for this request on the injected pool."""
+    return CatalogStore(pool)
+
+
 def get_plan_catalog(pool: PoolDep) -> PlanCatalog:
     """Build the plan catalogue for this request on the injected pool."""
     return PlanCatalog(pool)
@@ -80,3 +86,4 @@ IntegrationManagementDep = Annotated[IntegrationManagement, Depends(get_integrat
 InvestigationStoreDep = Annotated[InvestigationStore, Depends(get_investigation_store)]
 PlanCatalogDep = Annotated[PlanCatalog, Depends(get_plan_catalog)]
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
+CatalogStoreDep = Annotated[CatalogStore, Depends(get_catalog_store)]

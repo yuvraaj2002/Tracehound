@@ -74,10 +74,13 @@ export type IntegrationSummary = {
 
 export class ApiError extends Error {
   readonly status: number
-  constructor(status: number, message: string) {
+  /** Every problem, when the API returned a list of them (e.g. an invalid catalog). */
+  readonly problems: string[]
+  constructor(status: number, message: string, problems: string[] = []) {
     super(message)
     this.name = 'ApiError'
     this.status = status
+    this.problems = problems
   }
 }
 
@@ -89,7 +92,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   const { data } = await supabase.auth.getSession()
   const headers = new Headers(init.headers)
   headers.set('Accept', 'application/json')
-  if (init.body !== undefined) headers.set('Content-Type', 'application/json')
+  if (init.body !== undefined && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
   if (data.session) headers.set('Authorization', `Bearer ${data.session.access_token}`)
 
   let response: Response
@@ -107,20 +110,26 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     await supabase.auth.signOut({ scope: 'local' })
     throw new ApiError(401, 'Your session has expired. Please sign in again.')
   }
-  if (!response.ok) throw new ApiError(response.status, await errorMessage(response))
+  if (!response.ok) {
+    const { message, problems } = await errorDetail(response)
+    throw new ApiError(response.status, message, problems)
+  }
   // 204 No Content (e.g. a revoke) has no body to parse.
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
 }
 
-async function errorMessage(response: Response) {
+async function errorDetail(response: Response): Promise<{ message: string, problems: string[] }> {
   try {
     const body = await response.json() as { detail?: unknown }
-    if (typeof body.detail === 'string') return body.detail
-    // FastAPI validation errors: [{ loc, msg }, ...]
-    if (Array.isArray(body.detail)) return body.detail.map((item: { loc?: unknown[], msg?: string }) => `${item.loc?.at(-1) ?? 'request'}: ${item.msg?.replace(/^Value error, /, '')}`).join('; ')
+    if (typeof body.detail === 'string') return { message: body.detail, problems: [] }
+    if (Array.isArray(body.detail)) {
+      // A plain list of messages, or FastAPI validation errors: [{ loc, msg }, ...]
+      const problems = body.detail.map((item: string | { loc?: unknown[], msg?: string }) => typeof item === 'string' ? item : `${item.loc?.at(-1) ?? 'request'}: ${item.msg?.replace(/^Value error, /, '')}`)
+      return { message: problems.join('; '), problems }
+    }
   } catch { /* not JSON */ }
-  return `Request failed (${response.status})`
+  return { message: `Request failed (${response.status})`, problems: [] }
 }
 
 /** Pass `next_cursor` back as `cursor` for the next page; null on the last page. */
@@ -269,3 +278,39 @@ export type IncidentDetail = { incident: Incident, result: InvestigationResult |
 
 /** One incident with its stored investigation; rejects with ApiError 404 when it doesn't exist. */
 export const getIncident = (id: string) => apiFetch<IncidentDetail>(`/v1/incidents/${encodeURIComponent(id)}`)
+
+/** A Backstage Component (one of your services) or Resource (a database, queue or bucket). */
+export type CatalogEntity = {
+  name: string
+  entity_kind: 'Component' | 'Resource'
+  /** Backstage `spec.type`, e.g. service or database. */
+  type: string
+  /** What triage calls it: http for a service, or a resource's engine such as postgres. */
+  kind: string
+  owner: string
+  title: string | null
+  description: string | null
+  system: string | null
+  lifecycle: string | null
+  /** owner/name, from the github.com/project-slug annotation. */
+  repository: string | null
+}
+
+/** `source` calls `target` over `protocol`. */
+export type CatalogEdge = { source: string, target: string, protocol: string }
+
+/** What Tracehound understood from the uploaded catalog-info.yaml, and the file itself. */
+export type CatalogSummary = {
+  entities: CatalogEntity[]
+  edges: CatalogEdge[]
+  /** Entities of other kinds (System, Group, API…), counted but not part of the graph. */
+  ignored: Record<string, number>
+  source: string
+  updated_at: string
+}
+
+/** Rejects with a 404 ApiError when nothing has been uploaded yet. */
+export const getCatalog = () => apiFetch<CatalogSummary>('/v1/catalog')
+
+/** Replaces the catalog. An invalid file rejects with a 422 ApiError whose `problems` lists every issue. */
+export const putCatalog = (yaml: string) => apiFetch<CatalogSummary>('/v1/catalog', { method: 'PUT', body: yaml, headers: { 'Content-Type': 'application/yaml' } })

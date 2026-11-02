@@ -8,6 +8,7 @@ const baseUrl = (import.meta.env.VITE_API_URL ?? 'http://localhost:8000').replac
 const nav = [
   { group: 'Getting started', items: [{ id: 'introduction', label: 'Introduction' }, { id: 'quickstart', label: 'Quickstart' }, { id: 'authentication', label: 'Authentication' }] },
   { group: 'Investigations', items: [{ id: 'create-investigation', label: 'Start an investigation', method: 'POST' }, { id: 'list-investigations', label: 'List investigations', method: 'GET' }, { id: 'get-investigation', label: 'Get an investigation', method: 'GET' }] },
+  { group: 'Service catalog', items: [{ id: 'put-catalog', label: 'Upload the catalog', method: 'PUT' }, { id: 'get-catalog', label: 'Get the catalog', method: 'GET' }] },
   { group: 'Reference', items: [{ id: 'errors', label: 'Errors' }] },
 ]
 
@@ -203,6 +204,52 @@ const detailResponses = {
 const detailSample = `curl ${baseUrl}/v1/incidents/7d1c2f0e-5b8a-4c39-9e0d-2a6f1b3c4d5e \\
   -H "Authorization: Bearer $TRACEHOUND_API_KEY"`
 
+const catalogSample = `curl -X PUT ${baseUrl}/v1/catalog \\
+  -H "Authorization: Bearer $TRACEHOUND_API_KEY" \\
+  -H "Content-Type: application/yaml" \\
+  --data-binary @catalog-info.yaml`
+
+const getCatalogSample = `curl ${baseUrl}/v1/catalog \\
+  -H "Authorization: Bearer $TRACEHOUND_API_KEY"`
+
+const catalogFields: Param[] = [
+  { name: 'entities', type: 'array', required: true, description: <>Every <code>Component</code> (your services) and <code>Resource</code> (databases, queues). Each has <code>name</code>, <code>type</code>, <code>owner</code>, and <code>kind</code>: <code>http</code> for a service, or the engine from the <code>tracehound.dev/kind</code> annotation.</> },
+  { name: 'edges', type: 'array', required: true, description: <>One per dependency, from <code>spec.dependsOn</code> and <code>spec.dependencyOf</code>: <code>source</code> calls <code>target</code> over <code>protocol</code>.</> },
+  { name: 'ignored', type: 'object', required: true, description: <>Counts of other kinds (<code>System</code>, <code>Group</code>, <code>API</code>…) that were read but aren’t part of the graph.</> },
+  { name: 'source', type: 'string', required: true, description: 'The file exactly as you uploaded it.' },
+  { name: 'updated_at', type: 'datetime', required: true, description: 'When the catalog was last replaced.' },
+]
+
+const catalogResponses = {
+  '200': `{
+  "entities": [
+    { "name": "checkout-api", "entity_kind": "Component", "type": "service",
+      "kind": "http", "owner": "team-checkout", "system": "checkout",
+      "repository": "acme/checkout", ... },
+    { "name": "orders-db", "entity_kind": "Resource", "type": "database",
+      "kind": "postgres", "owner": "team-platform", ... }
+  ],
+  "edges": [
+    { "source": "checkout-api", "target": "orders-db", "protocol": "postgres" }
+  ],
+  "ignored": { "System": 1 },
+  "source": "apiVersion: backstage.io/v1alpha1\\n...",
+  "updated_at": "2026-11-02T04:45:17Z"
+}`,
+  '422': `{
+  "detail": [
+    "Component orders: spec.owner is required",
+    "checkout-api: spec.dependsOn names resource:orders-dbb, which isn't in this catalog"
+  ]
+}`,
+  '413': `{ "detail": "The catalog is over 1 MB." }`,
+}
+
+const getCatalogResponses = {
+  '200': catalogResponses['200'],
+  '404': `{ "detail": "No catalog uploaded." }`,
+}
+
 const listParams: Param[] = [
   { name: 'from', type: 'datetime', required: true, description: <>Start of the range, inclusive, in ISO 8601 with a timezone. Incidents are matched on when they were opened.</> },
   { name: 'to', type: 'datetime', required: true, description: <>End of the range, exclusive. At most 366 days after <code>from</code>.</> },
@@ -361,6 +408,36 @@ export default function ApiDocs() {
               <div className="docs-endpoint-code">
                 <CodeBlock label="cURL" code={detailSample} />
                 <ResponsePanel responses={detailResponses} />
+              </div>
+            </section>
+
+            <section id="put-catalog" className="docs-section docs-endpoint">
+              <div className="docs-endpoint-copy">
+                <h2>Upload the catalog</h2>
+                <p className="docs-route"><span className="docs-method is-put">PUT</span><code>/v1/catalog</code></p>
+                <p>Send your Backstage <code>catalog-info.yaml</code> as the request body, exactly as it is, with <code>Content-Type: application/yaml</code>. Separate entities with <code>---</code>. Each upload replaces the whole catalog, so sending the same file again is harmless; run it from CI on every merge to keep the map current.</p>
+                <p>Triage reads the dependencies and owners to decide which neighbouring services to investigate. Every <code>dependsOn</code> must name an entity in the same file. If anything is wrong, nothing is saved and the <code>422</code> lists every problem at once. Up to 1 MB and 500 entities.</p>
+
+                <h3>Response <span className="docs-status is-ok">200</span></h3>
+                <ParamList params={catalogFields} />
+              </div>
+
+              <div className="docs-endpoint-code">
+                <CodeBlock label="cURL" code={catalogSample} />
+                <ResponsePanel responses={catalogResponses} />
+              </div>
+            </section>
+
+            <section id="get-catalog" className="docs-section docs-endpoint">
+              <div className="docs-endpoint-copy">
+                <h2>Get the catalog</h2>
+                <p className="docs-route"><span className="docs-method is-get">GET</span><code>/v1/catalog</code></p>
+                <p>Returns what Tracehound understood from your last upload, with the file itself in <code>source</code>. <code>404</code> until a catalog is uploaded. You can also view and replace it on the <Link to="/app/catalog">Service catalog</Link> page.</p>
+              </div>
+
+              <div className="docs-endpoint-code">
+                <CodeBlock label="cURL" code={getCatalogSample} />
+                <ResponsePanel responses={getCatalogResponses} />
               </div>
             </section>
 

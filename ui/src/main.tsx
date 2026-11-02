@@ -12,6 +12,7 @@ import Workspace from './pages/Workspace.tsx'
 import IncidentDetail from './pages/IncidentDetail.tsx'
 import ApiKeys from './pages/ApiKeys.tsx'
 import Integrations from './pages/Integrations.tsx'
+import Catalog from './pages/Catalog.tsx'
 import ApiDocs from './pages/ApiDocs.tsx'
 import { SmoothScroll } from './useSmoothScroll'
 import ThemeProvider from './ThemeProvider.tsx'
@@ -31,6 +32,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="app/incidents/:incidentId" element={<RequireAuth><IncidentDetail /></RequireAuth>} />
           <Route path="app/api-keys" element={<RequireAuth><ApiKeys /></RequireAuth>} />
           <Route path="app/integrations" element={<RequireAuth><Integrations /></RequireAuth>} />
+          <Route path="app/catalog" element={<RequireAuth><Catalog /></RequireAuth>} />
           <Route path="app/docs" element={<RequireAuth><ApiDocs /></RequireAuth>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

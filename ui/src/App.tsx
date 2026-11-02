@@ -5,6 +5,7 @@ import InvestigationFlow from './InvestigationFlow'
 import AgentThread from './AgentThread'
 import Pricing from './Pricing'
 import SupportedIntegrations from './SupportedIntegrations'
+import ServiceCatalog from './ServiceCatalog'
 import Footer from './Footer'
 import { useGetStarted } from './auth/useGetStarted'
 
@@ -85,6 +86,7 @@ function App() {
 
         <InvestigationFlow />
         <SupportedIntegrations />
+        <ServiceCatalog />
         <Pricing />
       </main>
       <Footer />
