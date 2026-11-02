@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type R
 import { Link, useSearchParams } from 'react-router'
 import { ApiError, createIntegration, deleteIntegration, listIntegrations, updateIntegration, type IntegrationAuth, type IntegrationKind, type IntegrationStatus, type IntegrationSummary, type IntegrationUpdate } from '../lib/api'
 import Dialog from '../Dialog'
+import SetupTabs from '../SetupTabs'
 import SignedInHeader from '../SignedInHeader'
 import '../auth.css'
 
@@ -90,6 +91,7 @@ export default function Integrations() {
 
         <main className="workspace">
           <Link className="back-link" to="/app"><span aria-hidden="true">←</span> Home</Link>
+          <SetupTabs />
           <div className="workspace-heading">
             <div><p className="eyebrow"><span /> Data sources</p><h1 ref={heading} tabIndex={-1}>Integrations</h1><p className="heading-note">Connect the backends your services already report to. Each specialist reads its evidence from here, with read-only access.</p></div>
             {(previewing || load.status === 'ready') && <p className="source-count"><strong>{connected}</strong> of {sources.length} connected</p>}

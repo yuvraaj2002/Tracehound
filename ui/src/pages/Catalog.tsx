@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type
 import { Link } from 'react-router'
 import { ApiError, getCatalog, putCatalog, type CatalogEdge, type CatalogEntity, type CatalogSummary } from '../lib/api'
 import Dialog from '../Dialog'
+import SetupTabs from '../SetupTabs'
 import SignedInHeader from '../SignedInHeader'
 import '../auth.css'
 
@@ -74,6 +75,7 @@ export default function Catalog() {
 
         <main className="workspace">
           <Link className="back-link" to="/app"><span aria-hidden="true">←</span> Home</Link>
+          <SetupTabs />
           <div className="workspace-heading">
             <div><p className="eyebrow"><span /> Topology</p><h1 ref={heading} tabIndex={-1}>Service catalog</h1><p className="heading-note">Your Backstage <code>catalog-info.yaml</code>. Triage reads it to know which services call which, and who owns each one.</p></div>
             {catalog && <button type="button" className="button-primary" onClick={() => setEditing(true)}>Replace catalog</button>}
