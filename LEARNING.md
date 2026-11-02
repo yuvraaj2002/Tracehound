@@ -11,6 +11,7 @@ Each entry says what the idea is, why we use it, and where it shows up in the co
 - [The LGTM stack and the otel-lgtm image](#the-lgtm-stack-and-the-otel-lgtm-image)
 - [The OpenTelemetry Collector](#the-opentelemetry-collector)
 - [Database connection pool exhaustion](#database-connection-pool-exhaustion)
+- [ORM models vs. migrations](#orm-models-vs-migrations)
 
 ---
 
@@ -189,3 +190,32 @@ the clients down, and the queue never builds.
 What it looks like: the database itself is fine (low CPU, few connections), the app's request
 rate is steady, but errors and latency jump right after the pool shrinks. This pattern is how
 Tracehound should tell it apart from "the database is overloaded" or "traffic spiked".
+
+---
+
+## ORM models vs. migrations
+
+*Came up in: `src/tracehound/models/`, `supabase/migrations/`, ADR 0007*
+
+An ORM (SQLAlchemy here) maps each table to a Python class, so a query reads as
+`select(Incident).where(Incident.user_id == user_id)` and not as a SQL string. The column
+names are then checked by Python: a typo in an attribute fails at import time or in the
+type checker, not at query time.
+
+Two separate things describe a table, though:
+
+- **Migrations** (`supabase/migrations/*.sql`) *change* the real database. They run once,
+  in order, and Supabase records which ones have run.
+- **Models** (`tracehound/models/*.py`) *describe* the database to Python. They never
+  change it.
+
+Many projects generate migrations from the models (Alembic's autogenerate). We go the other
+way: migrations come first because Supabase owns them and they hold things models describe
+poorly (row level security, references to Supabase's `auth.users`). The cost is that the two
+can drift, so `test_models_match_migrations.py` builds the migrations into a scratch schema
+and compares each model's columns, nullability and primary key with what was built.
+
+Example: adding a `last_used_ip` column to `api_keys` means a new migration file
+(`alter table api_keys add column last_used_ip inet;`) *and* a line
+`last_used_ip: Mapped[str | None] = mapped_column(INET)` in `models/api_key.py`.
+

@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from psycopg_pool import ConnectionPool
+from sqlalchemy import Engine
 
 from tracehound.api.api_keys import router as api_keys_router
 from tracehound.api.catalog import router as catalog_router
@@ -19,7 +19,7 @@ from tracehound.api.integrations import router as integrations_router
 from tracehound.api.me import router as me_router
 from tracehound.api.plans import router as plans_router
 from tracehound.auth import TokenVerifier, supabase_url
-from tracehound.db import create_pool, database_url
+from tracehound.db import create_db_engine, create_session_factory, database_url
 from tracehound.helpers.api_key_helper import api_key_hash_secret
 from tracehound.helpers.catalog_helper import CatalogStore
 from tracehound.helpers.incident_helper import IncidentHelper
@@ -29,9 +29,9 @@ from tracehound.worker import InvestigationRunner
 from tracehound.worker.runner import LiveAgents
 
 
-def _default_pool() -> ConnectionPool:
+def _default_engine() -> Engine:
     load_dotenv()
-    return create_pool(database_url())
+    return create_db_engine(database_url())
 
 
 def cors_origins() -> list[str]:
@@ -40,8 +40,8 @@ def cors_origins() -> list[str]:
     return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
 
-def create_app(pool_factory: Callable[[], ConnectionPool] = _default_pool) -> FastAPI:
-    """Build the app. The pool opens on startup and closes on shutdown.
+def create_app(engine_factory: Callable[[], Engine] = _default_engine) -> FastAPI:
+    """Build the app. The engine is created on startup and disposed of on shutdown.
 
     By default it connects to `DATABASE_URL`, read from the environment or `.env`. Startup also
     needs `SUPABASE_URL` (to verify access tokens), `API_KEY_HASH_SECRET` and
@@ -52,18 +52,20 @@ def create_app(pool_factory: Callable[[], ConnectionPool] = _default_pool) -> Fa
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        with pool_factory() as pool:
-            app.state.incident_helper = IncidentHelper(pool)
-            app.state.pool = pool
+        engine = engine_factory()
+        sessions = create_session_factory(engine)
+        try:
+            app.state.incident_helper = IncidentHelper(sessions)
+            app.state.sessions = sessions
             app.state.api_key_hash_secret = api_key_hash_secret()
             app.state.integration_encryption_key = integration_encryption_key()
             app.state.token_verifier = TokenVerifier.for_project(supabase_url())
-            store = InvestigationStore(pool)
+            store = InvestigationStore(sessions)
             # Runs interrupted by a restart would stay RUNNING forever otherwise.
             store.fail_stale_runs()
             live = LiveAgents(
-                IntegrationManagement(pool, app.state.integration_encryption_key),
-                CatalogStore(pool),
+                IntegrationManagement(sessions, app.state.integration_encryption_key),
+                CatalogStore(sessions),
             )
             runner = InvestigationRunner(store, live_agents=live)
             app.state.investigation_runner = runner
@@ -71,6 +73,8 @@ def create_app(pool_factory: Callable[[], ConnectionPool] = _default_pool) -> Fa
                 yield
             finally:
                 runner.shutdown()
+        finally:
+            engine.dispose()
 
     app = FastAPI(title="Tracehound", version="0.1.0", lifespan=lifespan)
     app.add_middleware(

@@ -6,9 +6,11 @@ import os
 import secrets
 from uuid import UUID
 
-from psycopg_pool import ConnectionPool
+from sqlalchemy import func, select, tuple_, update
 
+from tracehound.db import SessionFactory
 from tracehound.helpers.pagination import decode_cursor, encode_cursor
+from tracehound.models import ApiKey
 from tracehound.schemas import ApiKeyCreated, ApiKeyPage, ApiKeySummary
 
 
@@ -28,8 +30,8 @@ class ApiKeyManagement:
     SUFFIX_LENGTH = 4
     PAGE_SIZE = 10
 
-    def __init__(self, pool: ConnectionPool, hash_secret: str) -> None:
-        self._pool = pool
+    def __init__(self, sessions: SessionFactory, hash_secret: str) -> None:
+        self._sessions = sessions
         self._hash_secret = hash_secret.encode()
 
     @classmethod
@@ -49,34 +51,34 @@ class ApiKeyManagement:
         """Store a new key for `user_id` and return it, including the raw key."""
         raw_key = self.generate_raw_key()
         prefix, suffix = self.display_parts(raw_key)
-        with self._pool.connection() as conn:
-            row = conn.execute(
-                "INSERT INTO api_keys (user_id, name, hash, prefix, suffix)"
-                " VALUES (%s, %s, %s, %s, %s) RETURNING id, created_at",
-                (user_id, name, self.hash_key(raw_key), prefix, suffix),
-            ).fetchone()
-        assert row is not None
-        return ApiKeyCreated(
-            id=row["id"],
-            name=name,
-            key=raw_key,
-            prefix=prefix,
-            suffix=suffix,
-            created_at=row["created_at"],
+        key = ApiKey(
+            user_id=user_id, name=name, hash=self.hash_key(raw_key), prefix=prefix, suffix=suffix
         )
+        with self._sessions.begin() as session:
+            session.add(key)
+            session.flush()  # sends the INSERT, so the database-filled id and created_at load
+            return ApiKeyCreated(
+                id=key.id,
+                name=name,
+                key=raw_key,
+                prefix=prefix,
+                suffix=suffix,
+                created_at=key.created_at,
+            )
 
     def revoke(self, user_id: UUID, key_id: UUID) -> bool:
         """Soft-delete `key_id` by setting `revoked_at`.
 
         Returns False when the key isn't the user's or is already revoked.
         """
-        with self._pool.connection() as conn:
-            row = conn.execute(
-                "UPDATE api_keys SET revoked_at = now(), updated_at = now()"
-                " WHERE id = %s AND user_id = %s AND revoked_at IS NULL RETURNING id",
-                (key_id, user_id),
-            ).fetchone()
-        return row is not None
+        stmt = (
+            update(ApiKey)
+            .where(ApiKey.id == key_id, ApiKey.user_id == user_id, ApiKey.revoked_at.is_(None))
+            .values(revoked_at=func.now(), updated_at=func.now())
+            .returning(ApiKey.id)
+        )
+        with self._sessions.begin() as session:
+            return session.execute(stmt).first() is not None
 
     def list(self, user_id: UUID, cursor: str | None = None) -> ApiKeyPage:
         """Return one page of the user's active keys, newest first.
@@ -84,19 +86,23 @@ class ApiKeyManagement:
         Raises `InvalidCursor` when `cursor` is malformed.
         """
         after = decode_cursor(cursor) if cursor else None
-        query = (
-            "SELECT id, name, prefix, suffix, created_at, last_used_at FROM api_keys"
-            " WHERE user_id = %s AND revoked_at IS NULL"
-        )
-        params: list[object] = [user_id]
+        stmt = select(ApiKey).where(ApiKey.user_id == user_id, ApiKey.revoked_at.is_(None))
         if after is not None:
-            query += " AND (created_at, id) < (%s, %s)"
-            params.extend(after)
-        query += " ORDER BY created_at DESC, id DESC LIMIT %s"
-        params.append(self.PAGE_SIZE + 1)
-        with self._pool.connection() as conn:
-            rows = conn.execute(query, params).fetchall()
-        items = [ApiKeySummary(**row) for row in rows[: self.PAGE_SIZE]]
+            stmt = stmt.where(tuple_(ApiKey.created_at, ApiKey.id) < after)
+        stmt = stmt.order_by(ApiKey.created_at.desc(), ApiKey.id.desc()).limit(self.PAGE_SIZE + 1)
+        with self._sessions() as session:
+            rows = session.scalars(stmt).all()
+        items = [
+            ApiKeySummary(
+                id=row.id,
+                name=row.name,
+                prefix=row.prefix,
+                suffix=row.suffix,
+                created_at=row.created_at,
+                last_used_at=row.last_used_at,
+            )
+            for row in rows[: self.PAGE_SIZE]
+        ]
         next_cursor = None
         if len(rows) > self.PAGE_SIZE:
             last = items[-1]

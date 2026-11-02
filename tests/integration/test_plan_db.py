@@ -5,11 +5,12 @@ Rows are written to a throwaway schema built from `supabase/migrations` (see `te
 
 from fastapi.testclient import TestClient
 from psycopg_pool import ConnectionPool
+from sqlalchemy import Engine
 
-from tests.integration.test_api_key_db import pool, pytestmark, schema
+from tests.integration.test_api_key_db import engine, pool, pytestmark, schema
 from tracehound.api.app import create_app
 
-__all__ = ["pool", "pytestmark", "schema"]
+__all__ = ["engine", "pool", "pytestmark", "schema"]
 
 
 def _seed(pool: ConnectionPool) -> None:
@@ -31,9 +32,9 @@ def _seed(pool: ConnectionPool) -> None:
         )
 
 
-def test_lists_active_plans_and_prices(pool: ConnectionPool) -> None:
+def test_lists_active_plans_and_prices(pool: ConnectionPool, engine: Engine) -> None:
     _seed(pool)
-    with TestClient(create_app(pool_factory=lambda: pool)) as client:
+    with TestClient(create_app(engine_factory=lambda: engine)) as client:
         response = client.get("/v1/plans")
     assert response.status_code == 200
     assert response.json() == {

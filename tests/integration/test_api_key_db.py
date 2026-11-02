@@ -15,12 +15,14 @@ import pytest
 from dotenv import load_dotenv
 from fastapi.testclient import TestClient
 from psycopg import sql
+from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
+from sqlalchemy import Engine
 
 from tracehound.api.app import create_app
 from tracehound.api.dependencies import get_current_user
 from tracehound.auth import User
-from tracehound.db import create_pool
+from tracehound.db import SessionFactory, create_db_engine, create_session_factory
 from tracehound.helpers.api_key_helper import ApiKeyManagement, api_key_hash_secret
 
 MIGRATIONS = Path(__file__).resolve().parents[2] / "supabase" / "migrations"
@@ -59,20 +61,42 @@ def schema() -> Iterator[str]:
 
 @pytest.fixture
 def pool(schema: str) -> Iterator[ConnectionPool]:
-    """A pool whose connections only see the test schema."""
-    with create_pool(os.environ["DATABASE_URL"], options=f"-c search_path={schema}") as test_pool:
+    """A raw psycopg pool on the test schema, for checking rows independently of the ORM."""
+    kwargs = {
+        "row_factory": dict_row,
+        "prepare_threshold": None,
+        "options": f"-c search_path={schema}",
+    }
+    with ConnectionPool(
+        os.environ["DATABASE_URL"], kwargs=kwargs, min_size=1, max_size=2
+    ) as test_pool:
         yield test_pool
 
 
 @pytest.fixture
-def client(pool: ConnectionPool, user_id: UUID) -> Iterator[TestClient]:
-    app = create_app(pool_factory=lambda: pool)
+def engine(schema: str) -> Iterator[Engine]:
+    """The app's SQLAlchemy engine, pointed at the test schema."""
+    test_engine = create_db_engine(os.environ["DATABASE_URL"], options=f"-c search_path={schema}")
+    yield test_engine
+    test_engine.dispose()
+
+
+@pytest.fixture
+def sessions(engine: Engine) -> SessionFactory:
+    return create_session_factory(engine)
+
+
+@pytest.fixture
+def client(engine: Engine, user_id: UUID) -> Iterator[TestClient]:
+    app = create_app(engine_factory=lambda: engine)
     app.dependency_overrides[get_current_user] = lambda: User(user_id=user_id)
     with TestClient(app) as test_client:
         yield test_client
 
 
-def test_key_is_persisted_as_hash(client: TestClient, pool: ConnectionPool, user_id: UUID) -> None:
+def test_key_is_persisted_as_hash(
+    sessions: SessionFactory, client: TestClient, pool: ConnectionPool, user_id: UUID
+) -> None:
     response = client.post("/v1/api-keys", json={"name": "Alertmanager"})
     assert response.status_code == 201
     body = response.json()
@@ -81,7 +105,7 @@ def test_key_is_persisted_as_hash(client: TestClient, pool: ConnectionPool, user
     assert row is not None
     assert row["user_id"] == user_id
     assert row["name"] == "Alertmanager"
-    assert row["hash"] == ApiKeyManagement(pool, api_key_hash_secret()).hash_key(body["key"])
+    assert row["hash"] == ApiKeyManagement(sessions, api_key_hash_secret()).hash_key(body["key"])
     assert body["key"] not in row.values()
     assert (row["prefix"], row["suffix"]) == (body["prefix"], body["suffix"])
     assert row["last_used_at"] is None

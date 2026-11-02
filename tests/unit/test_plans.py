@@ -1,7 +1,7 @@
-import psycopg
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import OperationalError
 
 from tracehound.api.app import create_app
 from tracehound.api.dependencies import get_plan_catalog
@@ -32,11 +32,11 @@ class MemoryPlans:
 
 class BrokenPlans:
     def list(self) -> PlanList:
-        raise psycopg.OperationalError("connection lost")
+        raise OperationalError("SELECT 1", None, Exception("connection lost"))
 
 
 def _app_with(plans: object) -> FastAPI:
-    app = create_app(pool_factory=lambda: pytest.fail("pool should not open"))
+    app = create_app(engine_factory=lambda: pytest.fail("engine should not be created"))
     app.dependency_overrides[get_plan_catalog] = lambda: plans
     return app
 

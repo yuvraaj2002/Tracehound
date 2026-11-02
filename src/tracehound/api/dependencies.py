@@ -4,9 +4,9 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from psycopg_pool import ConnectionPool
 
 from tracehound.auth import InvalidToken, TokenVerifier, User
+from tracehound.db import SessionFactory
 from tracehound.helpers.api_key_helper import ApiKeyManagement
 from tracehound.helpers.catalog_helper import CatalogStore
 from tracehound.helpers.incident_helper import IncidentHelper
@@ -23,38 +23,38 @@ def get_incident_helper(request: Request) -> IncidentHelper:
     return helper
 
 
-def get_pool(request: Request) -> ConnectionPool:
-    """Return the database pool that `create_app` opened on startup."""
-    pool: ConnectionPool = request.app.state.pool
-    return pool
+def get_sessions(request: Request) -> SessionFactory:
+    """Return the session factory that `create_app` built on startup."""
+    sessions: SessionFactory = request.app.state.sessions
+    return sessions
 
 
-PoolDep = Annotated[ConnectionPool, Depends(get_pool)]
+SessionsDep = Annotated[SessionFactory, Depends(get_sessions)]
 
 
-def get_api_key_management(request: Request, pool: PoolDep) -> ApiKeyManagement:
-    """Build the key manager for this request on the injected pool."""
-    return ApiKeyManagement(pool, request.app.state.api_key_hash_secret)
+def get_api_key_management(request: Request, sessions: SessionsDep) -> ApiKeyManagement:
+    """Build the key manager for this request on the injected sessions."""
+    return ApiKeyManagement(sessions, request.app.state.api_key_hash_secret)
 
 
-def get_integration_management(request: Request, pool: PoolDep) -> IntegrationManagement:
-    """Build the integration store for this request on the injected pool."""
-    return IntegrationManagement(pool, request.app.state.integration_encryption_key)
+def get_integration_management(request: Request, sessions: SessionsDep) -> IntegrationManagement:
+    """Build the integration store for this request on the injected sessions."""
+    return IntegrationManagement(sessions, request.app.state.integration_encryption_key)
 
 
-def get_investigation_store(pool: PoolDep) -> InvestigationStore:
-    """Build the investigation result store for this request on the injected pool."""
-    return InvestigationStore(pool)
+def get_investigation_store(sessions: SessionsDep) -> InvestigationStore:
+    """Build the investigation result store for this request on the injected sessions."""
+    return InvestigationStore(sessions)
 
 
-def get_catalog_store(pool: PoolDep) -> CatalogStore:
-    """Build the service catalog store for this request on the injected pool."""
-    return CatalogStore(pool)
+def get_catalog_store(sessions: SessionsDep) -> CatalogStore:
+    """Build the service catalog store for this request on the injected sessions."""
+    return CatalogStore(sessions)
 
 
-def get_plan_catalog(pool: PoolDep) -> PlanCatalog:
-    """Build the plan catalogue for this request on the injected pool."""
-    return PlanCatalog(pool)
+def get_plan_catalog(sessions: SessionsDep) -> PlanCatalog:
+    """Build the plan catalogue for this request on the injected sessions."""
+    return PlanCatalog(sessions)
 
 
 def get_token_verifier(request: Request) -> TokenVerifier:

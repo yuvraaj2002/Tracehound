@@ -10,10 +10,12 @@ from uuid import UUID, uuid4
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from psycopg import errors
-from psycopg.types.json import Jsonb
-from psycopg_pool import ConnectionPool
+from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 
+from tracehound.db import SessionFactory
 from tracehound.helpers.integration_client import Connection
+from tracehound.models import Integration
 from tracehound.schemas import (
     IntegrationCreateRequest,
     IntegrationList,
@@ -81,8 +83,8 @@ class IntegrationManagement:
 
     KEY_VERSION = 1  # bump with a second key when rotating INTEGRATION_ENCRYPTION_KEY
 
-    def __init__(self, pool: ConnectionPool, encryption_key: bytes) -> None:
-        self._pool = pool
+    def __init__(self, sessions: SessionFactory, encryption_key: bytes) -> None:
+        self._sessions = sessions
         self._box = SecretBox(encryption_key)
 
     @staticmethod
@@ -118,53 +120,69 @@ class IntegrationManagement:
         fields, secret = cls.auth_parts(request.auth)
         return {**merged, **fields}, True, secret
 
+    @staticmethod
+    def _summary(row: Integration) -> IntegrationSummary:
+        return IntegrationSummary(
+            id=row.id,
+            kind=row.kind,  # type: ignore[arg-type]
+            config=row.config,
+            has_secret=row.secret_ciphertext is not None,
+            status=row.status,  # type: ignore[arg-type]
+            last_tested_at=row.last_tested_at,
+            last_error=row.last_error,
+            created_at=row.created_at,
+        )
+
+    def _seal(self, integration_id: UUID, secret: str | None) -> tuple[bytes | None, int | None]:
+        """The ciphertext and key version to store for `secret`, or (None, None) without one."""
+        if secret is None:
+            return None, None
+        return self._box.encrypt(secret, integration_id.bytes), self.KEY_VERSION
+
     def create(self, user_id: UUID, request: IntegrationCreateRequest) -> IntegrationSummary:
         """Store a new integration for `user_id`. Raises `IntegrationExists` on a duplicate kind."""
         integration_id = uuid4()
         config, secret = self.split_auth(request)
-        ciphertext = None if secret is None else self._box.encrypt(secret, integration_id.bytes)
-        key_version = None if secret is None else self.KEY_VERSION
-        try:
-            with self._pool.connection() as conn:
-                row = conn.execute(
-                    "INSERT INTO integrations"
-                    " (id, user_id, kind, config, secret_ciphertext, secret_key_version)"
-                    " VALUES (%s, %s, %s, %s, %s, %s)"
-                    " RETURNING status, last_tested_at, last_error, created_at",
-                    (integration_id, user_id, request.kind, Jsonb(config), ciphertext, key_version),
-                ).fetchone()
-        except errors.UniqueViolation as exc:
-            raise IntegrationExists(request.kind) from exc
-        assert row is not None
-        return IntegrationSummary(
+        ciphertext, key_version = self._seal(integration_id, secret)
+        row = Integration(
             id=integration_id,
+            user_id=user_id,
             kind=request.kind,
             config=config,
-            has_secret=secret is not None,
-            **row,
+            secret_ciphertext=ciphertext,
+            secret_key_version=key_version,
         )
+        try:
+            with self._sessions.begin() as session:
+                session.add(row)
+                session.flush()
+                session.refresh(row)  # load status and created_at filled by the database
+                return self._summary(row)
+        except IntegrityError as exc:
+            if isinstance(exc.orig, errors.UniqueViolation):
+                raise IntegrationExists(request.kind) from exc
+            raise
 
     def list(self, user_id: UUID) -> IntegrationList:
         """Return all of the user's integrations, oldest first.
 
         There is at most one per kind, so the list stays small and is not paginated.
         """
-        with self._pool.connection() as conn:
-            rows = conn.execute(
-                "SELECT id, kind, config, secret_ciphertext IS NOT NULL AS has_secret, status,"
-                " last_tested_at, last_error, created_at FROM integrations"
-                " WHERE user_id = %s ORDER BY created_at, id",
-                (user_id,),
-            ).fetchall()
-        return IntegrationList(items=[IntegrationSummary(**row) for row in rows])
+        stmt = (
+            select(Integration)
+            .where(Integration.user_id == user_id)
+            .order_by(Integration.created_at, Integration.id)
+        )
+        with self._sessions() as session:
+            rows = session.scalars(stmt).all()
+        return IntegrationList(items=[self._summary(row) for row in rows])
 
     def missing_signals(self, user_id: UUID) -> Sequence[str]:
         """Return the names of the required signals `user_id` has no integration for."""
-        with self._pool.connection() as conn:
-            rows = conn.execute(
-                "SELECT kind FROM integrations WHERE user_id = %s", (user_id,)
-            ).fetchall()
-        connected = {row["kind"] for row in rows}
+        with self._sessions() as session:
+            connected = set(
+                session.scalars(select(Integration.kind).where(Integration.user_id == user_id))
+            )
         return [name for name, kind in REQUIRED_SIGNALS.items() if kind not in connected]
 
     def update(
@@ -175,89 +193,71 @@ class IntegrationManagement:
         The previous test result no longer applies, so the status goes back to untested.
         Returns None when the integration isn't the user's.
         """
-        with self._pool.connection() as conn, conn.transaction():
-            current = conn.execute(
-                "SELECT config FROM integrations WHERE id = %s AND user_id = %s FOR UPDATE",
-                (integration_id, user_id),
-            ).fetchone()
-            if current is None:
+        stmt = (
+            select(Integration)
+            .where(Integration.id == integration_id, Integration.user_id == user_id)
+            .with_for_update()
+        )
+        with self._sessions.begin() as session:
+            row = session.scalars(stmt).first()
+            if row is None:
                 return None
-            config, replace_secret, secret = self.merge_update(current["config"], request)
-            ciphertext = None if secret is None else self._box.encrypt(secret, integration_id.bytes)
-            key_version = None if secret is None else self.KEY_VERSION
-            row = conn.execute(
-                "UPDATE integrations SET config = %(config)s,"
-                " secret_ciphertext = CASE WHEN %(replace)s THEN %(ciphertext)s"
-                " ELSE secret_ciphertext END,"
-                " secret_key_version = CASE WHEN %(replace)s THEN %(key_version)s"
-                " ELSE secret_key_version END,"
-                " status = 'untested', last_tested_at = NULL, last_error = NULL, updated_at = now()"
-                " WHERE id = %(id)s"
-                " RETURNING id, kind, config, secret_ciphertext IS NOT NULL AS has_secret, status,"
-                " last_tested_at, last_error, created_at",
-                {
-                    "config": Jsonb(config),
-                    "replace": replace_secret,
-                    "ciphertext": ciphertext,
-                    "key_version": key_version,
-                    "id": integration_id,
-                },
-            ).fetchone()
-        assert row is not None
-        return IntegrationSummary(**row)
+            config, replace_secret, secret = self.merge_update(row.config, request)
+            row.config = config
+            if replace_secret:
+                row.secret_ciphertext, row.secret_key_version = self._seal(integration_id, secret)
+            row.status = "untested"
+            row.last_tested_at = None
+            row.last_error = None
+            row.updated_at = func.now()  # type: ignore[assignment]
+            session.flush()
+            session.refresh(row)
+            return self._summary(row)
 
-    def _to_connection(self, row: dict[str, Any]) -> Connection:
+    def _to_connection(self, row: Integration) -> Connection:
         """Decrypt a row's credential. Raises if it was sealed with a key this build lacks."""
         secret = None
-        if row["secret_ciphertext"] is not None:
-            if row["secret_key_version"] != self.KEY_VERSION:
+        if row.secret_ciphertext is not None:
+            if row.secret_key_version != self.KEY_VERSION:
                 raise RuntimeError(
-                    f"integration {row['id']} uses key version {row['secret_key_version']},"
+                    f"integration {row.id} uses key version {row.secret_key_version},"
                     f" only {self.KEY_VERSION} is loaded"
                 )
-            secret = self._box.decrypt(bytes(row["secret_ciphertext"]), row["id"].bytes)
-        return Connection(id=row["id"], kind=row["kind"], config=row["config"], secret=secret)
-
-    _CONNECTION_COLUMNS = "id, kind, config, secret_ciphertext, secret_key_version"
+            secret = self._box.decrypt(bytes(row.secret_ciphertext), row.id.bytes)
+        return Connection(id=row.id, kind=row.kind, config=row.config, secret=secret)  # type: ignore[arg-type]
 
     def connection(self, user_id: UUID, integration_id: UUID) -> Connection | None:
         """One of the user's integrations with its decrypted credential, or None if not theirs."""
-        with self._pool.connection() as conn:
-            row = conn.execute(
-                f"SELECT {self._CONNECTION_COLUMNS} FROM integrations"
-                " WHERE id = %s AND user_id = %s",
-                (integration_id, user_id),
-            ).fetchone()
+        stmt = select(Integration).where(
+            Integration.id == integration_id, Integration.user_id == user_id
+        )
+        with self._sessions() as session:
+            row = session.scalars(stmt).first()
         return None if row is None else self._to_connection(row)
 
     def connections(self, user_id: UUID) -> dict[IntegrationKind, Connection]:
         """All of the user's integrations with decrypted credentials, keyed by kind."""
-        with self._pool.connection() as conn:
-            rows = conn.execute(
-                f"SELECT {self._CONNECTION_COLUMNS} FROM integrations WHERE user_id = %s",
-                (user_id,),
-            ).fetchall()
-        return {row["kind"]: self._to_connection(row) for row in rows}
+        with self._sessions() as session:
+            rows = session.scalars(select(Integration).where(Integration.user_id == user_id)).all()
+        return {row.kind: self._to_connection(row) for row in rows}  # type: ignore[misc]
 
     def record_test(
         self, user_id: UUID, integration_id: UUID, error: str | None
     ) -> IntegrationSummary | None:
         """Store a connection test's outcome: active on success, else failing with `error`."""
-        with self._pool.connection() as conn:
-            row = conn.execute(
-                "UPDATE integrations SET status = %(status)s, last_tested_at = now(),"
-                " last_error = %(error)s"
-                " WHERE id = %(id)s AND user_id = %(user_id)s"
-                " RETURNING id, kind, config, secret_ciphertext IS NOT NULL AS has_secret, status,"
-                " last_tested_at, last_error, created_at",
-                {
-                    "status": "active" if error is None else "failing",
-                    "error": error,
-                    "id": integration_id,
-                    "user_id": user_id,
-                },
-            ).fetchone()
-        return None if row is None else IntegrationSummary(**row)
+        stmt = select(Integration).where(
+            Integration.id == integration_id, Integration.user_id == user_id
+        )
+        with self._sessions.begin() as session:
+            row = session.scalars(stmt).first()
+            if row is None:
+                return None
+            row.status = "active" if error is None else "failing"
+            row.last_tested_at = func.now()  # type: ignore[assignment]
+            row.last_error = error
+            session.flush()
+            session.refresh(row)
+            return self._summary(row)
 
     def delete(self, user_id: UUID, integration_id: UUID) -> bool:
         """Permanently delete `integration_id` and its encrypted credential.
@@ -265,9 +265,10 @@ class IntegrationManagement:
         A hard delete, so the user can connect the same kind again. Returns False when the
         integration isn't the user's.
         """
-        with self._pool.connection() as conn:
-            row = conn.execute(
-                "DELETE FROM integrations WHERE id = %s AND user_id = %s RETURNING id",
-                (integration_id, user_id),
-            ).fetchone()
-        return row is not None
+        stmt = (
+            delete(Integration)
+            .where(Integration.id == integration_id, Integration.user_id == user_id)
+            .returning(Integration.id)
+        )
+        with self._sessions.begin() as session:
+            return session.execute(stmt).first() is not None

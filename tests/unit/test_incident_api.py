@@ -1,10 +1,10 @@
 from datetime import UTC, date, datetime, timedelta
 from uuid import UUID, uuid4
 
-import psycopg
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import OperationalError
 
 from tracehound.api.app import create_app
 from tracehound.api.dependencies import (
@@ -102,13 +102,13 @@ class MemoryHelper:
 
 class BrokenHelper:
     def create(self, user_id: UUID, request: IncidentCreateRequest) -> IncidentAccepted:
-        raise psycopg.OperationalError("connection lost")
+        raise OperationalError("SELECT 1", None, Exception("connection lost"))
 
     def list(self, user_id: UUID, query: IncidentListQuery) -> IncidentPage:
-        raise psycopg.OperationalError("connection lost")
+        raise OperationalError("SELECT 1", None, Exception("connection lost"))
 
     def stats(self, user_id: UUID, query: IncidentStatsQuery) -> IncidentStats:
-        raise psycopg.OperationalError("connection lost")
+        raise OperationalError("SELECT 1", None, Exception("connection lost"))
 
 
 class MemoryIntegrations:
@@ -144,7 +144,7 @@ def _app_with(
 ) -> FastAPI:
     # The lifespan never runs because TestClient is not used as a context manager,
     # so no database pool is opened. `user_id=None` signs nobody in: every token is rejected.
-    app = create_app(pool_factory=lambda: pytest.fail("pool should not open"))
+    app = create_app(engine_factory=lambda: pytest.fail("engine should not be created"))
     app.dependency_overrides[get_incident_helper] = lambda: helper
     app.dependency_overrides[get_integration_management] = lambda: (
         integrations or MemoryIntegrations()

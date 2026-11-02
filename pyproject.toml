@@ -15,6 +15,7 @@ dependencies = [
     "pyjwt[crypto]>=2.15.1",
     "python-dotenv>=1.2.4",
     "pyyaml>=6.0.3",
+    "sqlalchemy>=2.0",
     "tenacity>=9.2.1",
     "torch>=2.14.1",
     "transformers>=5.20.1",

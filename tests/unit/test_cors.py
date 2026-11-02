@@ -9,7 +9,7 @@ UI_ORIGIN = "http://localhost:5173"
 
 def _client() -> TestClient:
     # As in test_incident_api: the lifespan never runs, so no database pool opens.
-    app = create_app(pool_factory=lambda: pytest.fail("pool should not open"))
+    app = create_app(engine_factory=lambda: pytest.fail("engine should not be created"))
     app.dependency_overrides[get_incident_helper] = lambda: pytest.fail("helper not needed")
     return TestClient(app)
 

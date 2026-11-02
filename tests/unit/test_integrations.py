@@ -2,11 +2,11 @@ import os
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-import psycopg
 import pytest
 from cryptography.exceptions import InvalidTag
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import OperationalError
 
 from tests.unit.test_api_keys import USER_ID, VERIFIER, _auth
 from tracehound.api.app import create_app
@@ -88,20 +88,20 @@ class BrokenIntegrations:
     def update(
         self, user_id: UUID, integration_id: UUID, request: IntegrationUpdateRequest
     ) -> IntegrationSummary | None:
-        raise psycopg.OperationalError("connection lost")
+        raise OperationalError("SELECT 1", None, Exception("connection lost"))
 
     def create(self, user_id: UUID, request: IntegrationCreateRequest) -> IntegrationSummary:
-        raise psycopg.OperationalError("connection lost")
+        raise OperationalError("SELECT 1", None, Exception("connection lost"))
 
     def list(self, user_id: UUID) -> IntegrationList:
-        raise psycopg.OperationalError("connection lost")
+        raise OperationalError("SELECT 1", None, Exception("connection lost"))
 
     def delete(self, user_id: UUID, integration_id: UUID) -> bool:
-        raise psycopg.OperationalError("connection lost")
+        raise OperationalError("SELECT 1", None, Exception("connection lost"))
 
 
 def _app_with(integrations: object) -> FastAPI:
-    app = create_app(pool_factory=lambda: pytest.fail("pool should not open"))
+    app = create_app(engine_factory=lambda: pytest.fail("engine should not be created"))
     app.dependency_overrides[get_integration_management] = lambda: integrations
     app.dependency_overrides[get_token_verifier] = lambda: VERIFIER
     return app

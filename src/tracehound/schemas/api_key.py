@@ -8,8 +8,8 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 class ApiKeyCreateRequest(BaseModel):
     """Payload for ``POST /v1/api-keys``."""
 
+    # To make sure that any extra field is upfront rejected instead of ignoring silently
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-
     name: str = Field(min_length=1, max_length=100)
 
 

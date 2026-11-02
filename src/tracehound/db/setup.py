@@ -1,9 +1,12 @@
-"""PostgreSQL connection pool setup. The schema lives in `supabase/migrations`."""
+"""SQLAlchemy engine and session setup. The schema lives in `supabase/migrations`."""
 
 import os
+from typing import Any
 
-from psycopg.rows import dict_row
-from psycopg_pool import ConnectionPool
+from sqlalchemy import Engine, create_engine
+from sqlalchemy.orm import Session, sessionmaker
+
+SessionFactory = sessionmaker[Session]
 
 
 def database_url() -> str:
@@ -14,16 +17,29 @@ def database_url() -> str:
     return url
 
 
-def create_pool(url: str, **connect_kwargs: object) -> ConnectionPool:
-    """Open a small pool whose rows can be read by column name.
+def sqlalchemy_url(url: str) -> str:
+    """Point a plain ``postgresql://`` URL at the psycopg 3 driver."""
+    for scheme in ("postgresql://", "postgres://"):
+        if url.startswith(scheme):
+            return "postgresql+psycopg://" + url.removeprefix(scheme)
+    return url
 
-    Server-side prepared statements are off so the pool also works behind Supabase's
-    transaction pooler.
+
+def create_db_engine(url: str, **connect_args: Any) -> Engine:
+    """A small pool of up to 5 connections.
+
+    Server-side prepared statements are off so the engine also works behind Supabase's
+    transaction pooler. `connect_args` go to psycopg (tests pass ``options`` for search_path).
     """
-    return ConnectionPool(
-        url,
-        min_size=1,
-        max_size=5,
-        kwargs={"row_factory": dict_row, "prepare_threshold": None, **connect_kwargs},
-        open=True,
+    return create_engine(
+        sqlalchemy_url(url),
+        pool_size=5,
+        max_overflow=0,
+        pool_pre_ping=True,
+        connect_args={"prepare_threshold": None, **connect_args},
     )
+
+
+def create_session_factory(engine: Engine) -> SessionFactory:
+    """Sessions that keep loaded objects readable after commit, so helpers can return them."""
+    return sessionmaker(engine, expire_on_commit=False)

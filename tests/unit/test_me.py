@@ -8,7 +8,7 @@ from tracehound.api.dependencies import get_token_verifier
 
 @pytest.fixture
 def client() -> TestClient:
-    app = create_app(pool_factory=lambda: pytest.fail("pool should not open"))
+    app = create_app(engine_factory=lambda: pytest.fail("engine should not be created"))
     app.dependency_overrides[get_token_verifier] = lambda: VERIFIER
     return TestClient(app)
 

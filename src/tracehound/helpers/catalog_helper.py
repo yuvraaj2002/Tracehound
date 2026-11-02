@@ -6,9 +6,11 @@ from typing import Any
 from uuid import UUID
 
 import yaml
-from psycopg.types.json import Jsonb
-from psycopg_pool import ConnectionPool
+from sqlalchemy import func
+from sqlalchemy.dialects.postgresql import insert
 
+from tracehound.db import SessionFactory
+from tracehound.models import ServiceCatalogRow
 from tracehound.schemas.catalog import CatalogEntity, CatalogSummary, ServiceCatalog
 from tracehound.schemas.telemetry import Edge
 
@@ -160,28 +162,29 @@ def parse_catalog(source: str) -> ServiceCatalog:
 class CatalogStore:
     """Each user's uploaded catalog, one row per user."""
 
-    def __init__(self, pool: ConnectionPool) -> None:
-        self._pool = pool
+    def __init__(self, sessions: SessionFactory) -> None:
+        self._sessions = sessions
 
     def get(self, user_id: UUID) -> CatalogSummary | None:
-        with self._pool.connection() as conn:
-            row = conn.execute(
-                "SELECT source, catalog, updated_at FROM service_catalogs WHERE user_id = %s",
-                (user_id,),
-            ).fetchone()
+        with self._sessions() as session:
+            row = session.get(ServiceCatalogRow, user_id)
         if row is None:
             return None
-        return CatalogSummary(source=row["source"], updated_at=row["updated_at"], **row["catalog"])
+        return CatalogSummary(source=row.source, updated_at=row.updated_at, **row.catalog)
 
     def put(self, user_id: UUID, source: str, catalog: ServiceCatalog) -> CatalogSummary:
         """Replace the user's catalog with `source`, already parsed into `catalog`."""
-        with self._pool.connection() as conn:
-            row = conn.execute(
-                "INSERT INTO service_catalogs (user_id, source, catalog) VALUES (%s, %s, %s)"
-                " ON CONFLICT (user_id) DO UPDATE SET source = EXCLUDED.source,"
-                " catalog = EXCLUDED.catalog, updated_at = now()"
-                " RETURNING updated_at",
-                (user_id, source, Jsonb(catalog.model_dump(mode="json"))),
-            ).fetchone()
-        assert row is not None
-        return CatalogSummary(source=source, updated_at=row["updated_at"], **catalog.model_dump())
+        stmt = insert(ServiceCatalogRow).values(
+            user_id=user_id, source=source, catalog=catalog.model_dump(mode="json")
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[ServiceCatalogRow.user_id],
+            set_={
+                "source": stmt.excluded.source,
+                "catalog": stmt.excluded.catalog,
+                "updated_at": func.now(),
+            },
+        ).returning(ServiceCatalogRow.updated_at)
+        with self._sessions.begin() as session:
+            updated_at = session.execute(stmt).scalar_one()
+        return CatalogSummary(source=source, updated_at=updated_at, **catalog.model_dump())

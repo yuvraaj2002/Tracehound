@@ -2,9 +2,9 @@
 
 import logging
 
-import psycopg
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.concurrency import run_in_threadpool
+from sqlalchemy.exc import SQLAlchemyError
 
 from tracehound.api.dependencies import CatalogStoreDep, CurrentUserDep
 from tracehound.helpers.catalog_helper import MAX_CATALOG_BYTES, CatalogInvalid, parse_catalog
@@ -27,7 +27,7 @@ _YAML_BODY = {
 def get_catalog(user: CurrentUserDep, catalogs: CatalogStoreDep) -> CatalogSummary:
     try:
         catalog = catalogs.get(user.user_id)
-    except psycopg.Error as exc:
+    except SQLAlchemyError as exc:
         logger.exception("Failed to read the catalog for user %s", user.user_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -73,7 +73,7 @@ async def put_catalog(
         ) from exc
     try:
         return await run_in_threadpool(catalogs.put, user.user_id, source, catalog)
-    except psycopg.Error as exc:
+    except SQLAlchemyError as exc:
         logger.exception("Failed to save the catalog for user %s", user.user_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

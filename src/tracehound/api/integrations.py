@@ -3,8 +3,8 @@
 import logging
 from uuid import UUID
 
-import psycopg
 from fastapi import APIRouter, HTTPException, Response, status
+from sqlalchemy.exc import SQLAlchemyError
 
 from tracehound.api.dependencies import CurrentUserDep, IntegrationManagementDep
 from tracehound.helpers.integration_client import test_connection
@@ -27,7 +27,7 @@ def list_integrations(
 ) -> IntegrationList:
     try:
         return integrations.list(user.user_id)
-    except psycopg.Error as exc:
+    except SQLAlchemyError as exc:
         logger.exception("Failed to list integrations for user %s", user.user_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -46,7 +46,7 @@ def create_integration(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"A {payload.kind} integration already exists.",
         ) from exc
-    except psycopg.Error as exc:
+    except SQLAlchemyError as exc:
         logger.exception("Failed to create %s integration for user %s", payload.kind, user.user_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -63,7 +63,7 @@ def update_integration(
 ) -> IntegrationSummary:
     try:
         updated = integrations.update(user.user_id, integration_id, payload)
-    except psycopg.Error as exc:
+    except SQLAlchemyError as exc:
         logger.exception(
             "Failed to update integration %s for user %s", integration_id, user.user_id
         )
@@ -93,7 +93,7 @@ def test_integration(
             )
         error = test_connection(connection)
         tested = integrations.record_test(user.user_id, integration_id, error)
-    except psycopg.Error as exc:
+    except SQLAlchemyError as exc:
         logger.exception("Failed to test integration %s for user %s", integration_id, user.user_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -110,7 +110,7 @@ def delete_integration(
 ) -> Response:
     try:
         deleted = integrations.delete(user.user_id, integration_id)
-    except psycopg.Error as exc:
+    except SQLAlchemyError as exc:
         logger.exception(
             "Failed to delete integration %s for user %s", integration_id, user.user_id
         )

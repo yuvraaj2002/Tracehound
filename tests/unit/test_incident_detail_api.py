@@ -1,10 +1,10 @@
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-import psycopg
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import OperationalError
 
 from tracehound.api.app import create_app
 from tracehound.api.dependencies import (
@@ -100,7 +100,7 @@ class MemoryStore:
 
 class BrokenStore:
     def get(self, user_id: UUID, incident_id: UUID) -> IncidentDetail | None:
-        raise psycopg.OperationalError("connection lost")
+        raise OperationalError("SELECT 1", None, Exception("connection lost"))
 
 
 class RejectingVerifier:
@@ -109,7 +109,7 @@ class RejectingVerifier:
 
 
 def _app_with(store: object, user_id: UUID | None = USER_ID) -> FastAPI:
-    app = create_app(pool_factory=lambda: pytest.fail("pool should not open"))
+    app = create_app(engine_factory=lambda: pytest.fail("engine should not be created"))
     app.dependency_overrides[get_investigation_store] = lambda: store
     if user_id is None:
         app.dependency_overrides[get_token_verifier] = RejectingVerifier

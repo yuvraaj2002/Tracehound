@@ -2,9 +2,11 @@
 
 from uuid import UUID, uuid4
 
-from psycopg_pool import ConnectionPool
+from sqlalchemy import select, text, tuple_
 
+from tracehound.db import SessionFactory
 from tracehound.helpers.pagination import decode_cursor, encode_cursor
+from tracehound.models import Incident
 from tracehound.schemas import (
     IncidentAccepted,
     IncidentCreateRequest,
@@ -16,19 +18,21 @@ from tracehound.schemas import (
     Severity,
 )
 
-# One round trip for every dashboard figure. `scoped` is the user's incidents in [from, to);
-# the previous period [prev_from, from) only needs a count. Days are UTC calendar days.
-_STATS_SQL = """
+# One round trip for every dashboard figure. Kept as SQL text: generate_series, FILTER and the
+# nested json_agg calls read far more clearly here than as SQLAlchemy expressions. `scoped` is
+# the user's incidents in [from, to); the previous period [prev_from, from) only needs a count.
+# Days are UTC calendar days.
+_STATS_SQL = text("""
 WITH scoped AS (
     SELECT severity, service_id, state, created_at, window_start, window_end, trace_id
     FROM incidents
-    WHERE user_id = %(user_id)s AND created_at >= %(from)s AND created_at < %(to)s
+    WHERE user_id = :user_id AND created_at >= :from AND created_at < :to
 ),
 days AS (
     SELECT day::date AS day
     FROM generate_series(
-        date_trunc('day', %(from)s AT TIME ZONE 'UTC'),
-        (%(to)s - interval '1 microsecond') AT TIME ZONE 'UTC',
+        date_trunc('day', :from AT TIME ZONE 'UTC'),
+        (:to - interval '1 microsecond') AT TIME ZONE 'UTC',
         interval '1 day'
     ) AS day
 ),
@@ -62,7 +66,7 @@ SELECT
     avg((trace_id IS NOT NULL)::int)::float8 AS trace_coverage,
     (
         SELECT count(*) FROM incidents
-        WHERE user_id = %(user_id)s AND created_at >= %(prev_from)s AND created_at < %(from)s
+        WHERE user_id = :user_id AND created_at >= :prev_from AND created_at < :from
     ) AS previous_total,
     (
         SELECT coalesce(json_object_agg(state, count), '{}'::json) FROM states
@@ -90,33 +94,47 @@ SELECT
         FROM days LEFT JOIN daily USING (day)
     ) AS timeseries
 FROM scoped
-"""
+""")
+
+
+def incident_record(row: Incident) -> IncidentRecord:
+    return IncidentRecord(
+        id=row.id,
+        run_id=row.run_id,
+        service_id=row.service_id,
+        symptom=row.symptom,
+        severity=row.severity,  # type: ignore[arg-type]
+        window_start=row.window_start,
+        window_end=row.window_end,
+        trace_id=row.trace_id,
+        state=row.state,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
 
 
 class IncidentHelper:
-    """Incident queries over one connection pool. Timestamps are stored as `timestamptz`."""
+    """Incident queries through one session factory. Timestamps are stored as `timestamptz`."""
 
-    def __init__(self, pool: ConnectionPool) -> None:
-        self._pool = pool
+    def __init__(self, sessions: SessionFactory) -> None:
+        self._sessions = sessions
 
     def create(self, user_id: UUID, request: IncidentCreateRequest) -> IncidentAccepted:
         """Insert a new incident owned by `user_id`, in the CREATED state."""
         incident_id, run_id = uuid4(), uuid4()
-        with self._pool.connection() as conn:
-            conn.execute(
-                "INSERT INTO incidents (id, run_id, user_id, service_id, symptom, severity,"
-                " window_start, window_end, trace_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                (
-                    incident_id,
-                    run_id,
-                    user_id,
-                    request.service_id,
-                    request.symptom,
-                    request.severity.value,
-                    request.window_start,
-                    request.window_end,
-                    request.trace_id,
-                ),
+        with self._sessions.begin() as session:
+            session.add(
+                Incident(
+                    id=incident_id,
+                    run_id=run_id,
+                    user_id=user_id,
+                    service_id=request.service_id,
+                    symptom=request.symptom,
+                    severity=request.severity.value,
+                    window_start=request.window_start,
+                    window_end=request.window_end,
+                    trace_id=request.trace_id,
+                )
             )
         return IncidentAccepted(
             incident_id=incident_id,
@@ -126,11 +144,10 @@ class IncidentHelper:
 
     def get(self, user_id: UUID, incident_id: UUID) -> IncidentRecord | None:
         """Return the incident if `user_id` owns it, else None."""
-        with self._pool.connection() as conn:
-            row = conn.execute(
-                "SELECT * FROM incidents WHERE id = %s AND user_id = %s", (incident_id, user_id)
-            ).fetchone()
-        return IncidentRecord.model_validate(row) if row else None
+        stmt = select(Incident).where(Incident.id == incident_id, Incident.user_id == user_id)
+        with self._sessions() as session:
+            row = session.scalars(stmt).first()
+        return incident_record(row) if row else None
 
     def list(self, user_id: UUID, query: IncidentListQuery) -> IncidentPage:
         """One page of `user_id`'s incidents created in ``[from, to)``, newest first.
@@ -140,25 +157,25 @@ class IncidentHelper:
 
         Raises `InvalidCursor` when `query.cursor` is malformed.
         """
-        sql = "SELECT * FROM incidents WHERE user_id = %s AND created_at >= %s AND created_at < %s"
-        params: list[object] = [user_id, query.from_, query.to]
+        stmt = select(Incident).where(
+            Incident.user_id == user_id,
+            Incident.created_at >= query.from_,
+            Incident.created_at < query.to,
+        )
         if query.severity:
-            sql += " AND severity = ANY(%s)"
-            params.append([severity.value for severity in query.severity])
+            stmt = stmt.where(Incident.severity.in_([s.value for s in query.severity]))
         if query.state:
-            sql += " AND state = ANY(%s)"
-            params.append(list(query.state))
+            stmt = stmt.where(Incident.state.in_(list(query.state)))
         if query.service_id:
-            sql += " AND service_id = %s"
-            params.append(query.service_id)
+            stmt = stmt.where(Incident.service_id == query.service_id)
         if query.cursor:
-            sql += " AND (created_at, id) < (%s, %s)"
-            params.extend(decode_cursor(query.cursor))
-        sql += " ORDER BY created_at DESC, id DESC LIMIT %s"
-        params.append(query.limit + 1)
-        with self._pool.connection() as conn:
-            rows = conn.execute(sql, params).fetchall()
-        items = [IncidentRecord.model_validate(row) for row in rows[: query.limit]]
+            stmt = stmt.where(
+                tuple_(Incident.created_at, Incident.id) < decode_cursor(query.cursor)
+            )
+        stmt = stmt.order_by(Incident.created_at.desc(), Incident.id.desc()).limit(query.limit + 1)
+        with self._sessions() as session:
+            rows = session.scalars(stmt).all()
+        items = [incident_record(row) for row in rows[: query.limit]]
         next_cursor = None
         if len(rows) > query.limit:
             next_cursor = encode_cursor(items[-1].created_at, items[-1].id)
@@ -172,9 +189,9 @@ class IncidentHelper:
             "to": query.to,
             "prev_from": query.from_ - (query.to - query.from_),
         }
-        with self._pool.connection() as conn:
-            row = conn.execute(_STATS_SQL, params).fetchone()
-        assert row is not None  # an aggregate without GROUP BY always returns one row
+        with self._sessions() as session:
+            # an aggregate without GROUP BY always returns one row
+            row = session.execute(_STATS_SQL, params).mappings().one()
         return IncidentStats(
             from_=query.from_,
             to=query.to,

@@ -16,12 +16,14 @@ import pytest
 from dotenv import load_dotenv
 from fastapi.testclient import TestClient
 from psycopg import sql
+from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
+from sqlalchemy import Engine
 
 from tracehound.api.app import create_app
 from tracehound.api.dependencies import get_current_user
 from tracehound.auth import User
-from tracehound.db import create_pool
+from tracehound.db import SessionFactory, create_db_engine, create_session_factory
 from tracehound.helpers.incident_helper import IncidentHelper
 from tracehound.schemas import IncidentCreateRequest, IncidentListQuery, IncidentStatsQuery
 
@@ -70,15 +72,34 @@ def schema() -> Iterator[str]:
 
 @pytest.fixture
 def pool(schema: str) -> Iterator[ConnectionPool]:
-    """A pool whose connections only see the test schema."""
-    with create_pool(os.environ["DATABASE_URL"], options=f"-c search_path={schema}") as test_pool:
+    """A raw psycopg pool on the test schema, for checking rows independently of the ORM."""
+    kwargs = {
+        "row_factory": dict_row,
+        "prepare_threshold": None,
+        "options": f"-c search_path={schema}",
+    }
+    with ConnectionPool(
+        os.environ["DATABASE_URL"], kwargs=kwargs, min_size=1, max_size=2
+    ) as test_pool:
         yield test_pool
 
 
 @pytest.fixture
-def client(pool: ConnectionPool, user_id: UUID) -> Iterator[TestClient]:
-    # The app's lifespan closes the pool it is given; the fixture's `with` tolerates that.
-    app = create_app(pool_factory=lambda: pool)
+def engine(schema: str) -> Iterator[Engine]:
+    """The app's SQLAlchemy engine, pointed at the test schema."""
+    test_engine = create_db_engine(os.environ["DATABASE_URL"], options=f"-c search_path={schema}")
+    yield test_engine
+    test_engine.dispose()
+
+
+@pytest.fixture
+def sessions(engine: Engine) -> SessionFactory:
+    return create_session_factory(engine)
+
+
+@pytest.fixture
+def client(engine: Engine, user_id: UUID) -> Iterator[TestClient]:
+    app = create_app(engine_factory=lambda: engine)
     app.dependency_overrides[get_current_user] = lambda: User(user_id=user_id)
     with TestClient(app) as test_client:
         yield test_client
@@ -119,8 +140,10 @@ def test_list_incidents_returns_range_newest_first(client: TestClient) -> None:
     assert body[1]["window_start"] == "2026-10-17T14:00:00Z"
 
 
-def test_user_cannot_see_another_users_incidents(pool: ConnectionPool, user_id: UUID) -> None:
-    helper = IncidentHelper(pool)
+def test_user_cannot_see_another_users_incidents(
+    sessions: SessionFactory, pool: ConnectionPool, user_id: UUID
+) -> None:
+    helper = IncidentHelper(sessions)
     created = helper.create(user_id, IncidentCreateRequest.model_validate(VALID))
     stranger = uuid4()  # reads need no auth.users row
     now = datetime.now(UTC)
@@ -233,13 +256,13 @@ def test_stats_cover_only_the_users_incidents_in_range(
 
 
 def test_stats_are_empty_and_zero_filled_without_incidents(
-    pool: ConnectionPool, user_id: UUID
+    sessions: SessionFactory, pool: ConnectionPool, user_id: UUID
 ) -> None:
     # A range that starts and ends mid-day still gets a point for each UTC day it touches.
     query = IncidentStatsQuery.model_validate(
         {"from": "2026-10-01T12:00:00Z", "to": "2026-10-03T06:00:00Z"}
     )
-    stats = IncidentHelper(pool).stats(user_id, query)
+    stats = IncidentHelper(sessions).stats(user_id, query)
     assert stats.total == 0
     assert stats.previous_total == 0
     assert stats.by_severity.model_dump() == {"low": 0, "medium": 0, "high": 0, "critical": 0}
@@ -263,10 +286,12 @@ def test_database_error_returns_500(client: TestClient, pool: ConnectionPool) ->
     assert client.get("/v1/incidents/stats", params=stats_range).status_code == 500
 
 
-def test_list_pages_through_the_range_newest_first(pool: ConnectionPool, user_id: UUID) -> None:
+def test_list_pages_through_the_range_newest_first(
+    sessions: SessionFactory, pool: ConnectionPool, user_id: UUID
+) -> None:
     with pool.connection() as conn:  # let a made-up user own one incident, as above
         conn.execute("ALTER TABLE incidents DROP CONSTRAINT incidents_user_id_fkey")
-    helper = IncidentHelper(pool)
+    helper = IncidentHelper(sessions)
     for hour in range(5):
         _insert(pool, user_id, f"2026-10-01T0{hour}:00:00+00:00", service_id=f"svc-{hour}")
     _insert(pool, user_id, "2026-10-02T00:00:00+00:00", service_id="at-to")  # excluded: == to

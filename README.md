@@ -14,7 +14,8 @@ src/tracehound/
   tools/         read-only telemetry interfaces and adapters
   agents/        specialist agents
   orchestrator/  workflow state machine, budgets, checkpoints
-  db/            PostgreSQL connection pool
+  models/        SQLAlchemy ORM models, one per table
+  db/            SQLAlchemy engine and session setup
   helpers/       per-entity DB queries (incident_helper, ...)
   api/           HTTP API
 simulation/      synthetic services that generate seeded faults

@@ -5,8 +5,8 @@ from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-import psycopg
 from fastapi import APIRouter, HTTPException, Query, status
+from sqlalchemy.exc import SQLAlchemyError
 
 from tracehound.api.dependencies import (
     CurrentUserDep,
@@ -43,7 +43,7 @@ def create_incident(
 ) -> IncidentAccepted:
     try:
         missing = integrations.missing_signals(user.user_id)
-    except psycopg.Error as exc:
+    except SQLAlchemyError as exc:
         logger.exception("Failed to check integrations for service %s", payload.service_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -56,7 +56,7 @@ def create_incident(
         )
     try:
         accepted = helper.create(user.user_id, payload)
-    except psycopg.Error as exc:
+    except SQLAlchemyError as exc:
         logger.exception("Failed to store incident for service %s", payload.service_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -89,7 +89,7 @@ def list_incidents(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid pagination cursor."
         ) from exc
-    except psycopg.Error as exc:
+    except SQLAlchemyError as exc:
         logger.exception("Failed to list incidents for user %s", user.user_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -104,7 +104,7 @@ def incident_stats(
 ) -> IncidentStats:
     try:
         return helper.stats(user.user_id, query)
-    except psycopg.Error as exc:
+    except SQLAlchemyError as exc:
         logger.exception("Failed to compute incident stats for user %s", user.user_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -118,7 +118,7 @@ def get_incident(
 ) -> IncidentDetail:
     try:
         detail = store.get(user.user_id, incident_id)
-    except psycopg.Error as exc:
+    except SQLAlchemyError as exc:
         logger.exception("Failed to load incident %s", incident_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

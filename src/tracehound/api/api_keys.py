@@ -3,8 +3,8 @@
 import logging
 from uuid import UUID
 
-import psycopg
 from fastapi import APIRouter, HTTPException, Response, status
+from sqlalchemy.exc import SQLAlchemyError
 
 from tracehound.api.dependencies import ApiKeyManagementDep, CurrentUserDep
 from tracehound.helpers.pagination import InvalidCursor
@@ -25,7 +25,7 @@ def list_api_keys(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid pagination cursor."
         ) from exc
-    except psycopg.Error as exc:
+    except SQLAlchemyError as exc:
         logger.exception("Failed to list API keys for user %s", user.user_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -39,7 +39,7 @@ def create_api_key(
 ) -> ApiKeyCreated:
     try:
         return keys.create(user.user_id, payload.name)
-    except psycopg.Error as exc:
+    except SQLAlchemyError as exc:
         logger.exception("Failed to create API key for user %s", user.user_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -51,7 +51,7 @@ def create_api_key(
 def revoke_api_key(key_id: UUID, user: CurrentUserDep, keys: ApiKeyManagementDep) -> Response:
     try:
         revoked = keys.revoke(user.user_id, key_id)
-    except psycopg.Error as exc:
+    except SQLAlchemyError as exc:
         logger.exception("Failed to revoke API key %s for user %s", key_id, user.user_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

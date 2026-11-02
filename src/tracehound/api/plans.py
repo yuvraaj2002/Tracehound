@@ -2,8 +2,8 @@
 
 import logging
 
-import psycopg
 from fastapi import APIRouter, HTTPException, Response, status
+from sqlalchemy.exc import SQLAlchemyError
 
 from tracehound.api.dependencies import PlanCatalogDep
 from tracehound.schemas import PlanList
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/v1/plans", tags=["plans"])
 def list_plans(plans: PlanCatalogDep, response: Response) -> PlanList:
     try:
         result = plans.list()
-    except psycopg.Error as exc:
+    except SQLAlchemyError as exc:
         logger.exception("Failed to list plans")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
