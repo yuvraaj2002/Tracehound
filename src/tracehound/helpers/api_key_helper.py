@@ -6,7 +6,8 @@ import os
 import secrets
 from uuid import UUID
 
-from sqlalchemy import func, select, tuple_, update
+from sqlalchemy import cast, func, select, tuple_, update
+from sqlalchemy.types import Text
 
 from tracehound.db import SessionFactory
 from tracehound.helpers.pagination import decode_cursor, encode_cursor
@@ -22,6 +23,10 @@ def api_key_hash_secret() -> str:
     return secret
 
 
+class ApiKeyLimitReached(Exception):
+    """The user already has the maximum number of active keys."""
+
+
 class ApiKeyManagement:
     """Creates API keys for users. Keys look like `th_<43 url-safe chars>` (256 random bits)."""
 
@@ -29,6 +34,7 @@ class ApiKeyManagement:
     PREFIX_LENGTH = len(KEY_PREFIX) + 4
     SUFFIX_LENGTH = 4
     PAGE_SIZE = 10
+    MAX_ACTIVE_KEYS = 5  # revoked keys don't count
 
     def __init__(self, sessions: SessionFactory, hash_secret: str) -> None:
         self._sessions = sessions
@@ -48,13 +54,25 @@ class ApiKeyManagement:
         return hmac.new(self._hash_secret, raw_key.encode(), hashlib.sha256).hexdigest()
 
     def create(self, user_id: UUID, name: str) -> ApiKeyCreated:
-        """Store a new key for `user_id` and return it, including the raw key."""
+        """Store a new key for `user_id` and return it, including the raw key.
+
+        Raises `ApiKeyLimitReached` when the user already has `MAX_ACTIVE_KEYS` active keys.
+        """
         raw_key = self.generate_raw_key()
         prefix, suffix = self.display_parts(raw_key)
         key = ApiKey(
             user_id=user_id, name=name, hash=self.hash_key(raw_key), prefix=prefix, suffix=suffix
         )
         with self._sessions.begin() as session:
+            # Per-user lock until commit, so two concurrent requests can't both take the last slot.
+            session.execute(select(func.pg_advisory_xact_lock(func.hashtext(cast(user_id, Text)))))
+            active = session.scalar(
+                select(func.count())
+                .select_from(ApiKey)
+                .where(ApiKey.user_id == user_id, ApiKey.revoked_at.is_(None))
+            )
+            if (active or 0) >= self.MAX_ACTIVE_KEYS:
+                raise ApiKeyLimitReached(user_id)
             session.add(key)
             session.flush()  # sends the INSERT, so the database-filled id and created_at load
             return ApiKeyCreated(
@@ -64,6 +82,7 @@ class ApiKeyManagement:
                 prefix=prefix,
                 suffix=suffix,
                 created_at=key.created_at,
+                updated_at=key.updated_at,
             )
 
     def revoke(self, user_id: UUID, key_id: UUID) -> bool:
@@ -79,6 +98,28 @@ class ApiKeyManagement:
         )
         with self._sessions.begin() as session:
             return session.execute(stmt).first() is not None
+
+    def rename(self, user_id: UUID, key_id: UUID, new_name: str) -> ApiKeySummary | None:
+        """Change an active key's name. Returns None when the key isn't the user's or is revoked."""
+        stmt = (
+            update(ApiKey)
+            .where(ApiKey.id == key_id, ApiKey.user_id == user_id, ApiKey.revoked_at.is_(None))
+            .values(name=new_name, updated_at=func.now())
+            .returning(ApiKey)
+        )
+        with self._sessions.begin() as session:
+            row = session.scalars(stmt).first()
+            if row is None:
+                return None
+            return ApiKeySummary(
+                id=row.id,
+                name=row.name,
+                prefix=row.prefix,
+                suffix=row.suffix,
+                created_at=row.created_at,
+                updated_at=row.updated_at,
+                last_used_at=row.last_used_at,
+            )
 
     def list(self, user_id: UUID, cursor: str | None = None) -> ApiKeyPage:
         """Return one page of the user's active keys, newest first.
@@ -99,6 +140,7 @@ class ApiKeyManagement:
                 prefix=row.prefix,
                 suffix=row.suffix,
                 created_at=row.created_at,
+                updated_at=row.updated_at,
                 last_used_at=row.last_used_at,
             )
             for row in rows[: self.PAGE_SIZE]

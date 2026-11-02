@@ -34,6 +34,8 @@ export type ApiKeySummary = {
   prefix: string
   suffix: string
   created_at: string
+  /** Changes when the key is renamed. */
+  updated_at: string
   last_used_at: string | null
 }
 
@@ -152,6 +154,8 @@ export const createIncident = (incident: IncidentCreate) => apiFetch<IncidentAcc
 export const listApiKeys = (cursor?: string | null) => apiFetch<ApiKeyPage>(`/v1/api-keys${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`)
 
 export const createApiKey = (name: string) => apiFetch<ApiKeyCreated>('/v1/api-keys', { method: 'POST', body: JSON.stringify({ name }) })
+
+export const renameApiKey = (id: string, newName: string) => apiFetch<ApiKeySummary>(`/v1/api-keys/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify({ new_name: newName }) })
 
 export const revokeApiKey = (id: string) => apiFetch<void>(`/v1/api-keys/${encodeURIComponent(id)}`, { method: 'DELETE' })
 

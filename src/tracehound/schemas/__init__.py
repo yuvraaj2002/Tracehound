@@ -4,6 +4,7 @@ from tracehound.schemas.api_key import (
     ApiKeyCreated,
     ApiKeyCreateRequest,
     ApiKeyPage,
+    ApiKeyRenameRequest,
     ApiKeySummary,
 )
 from tracehound.schemas.evidence import Evidence, EvidenceId, EvidenceSource, hash_payload
@@ -57,6 +58,7 @@ __all__ = [
     "ApiKeyCreateRequest",
     "ApiKeyCreated",
     "ApiKeyPage",
+    "ApiKeyRenameRequest",
     "ApiKeySummary",
     "BillingInterval",
     "ConfidenceBand",

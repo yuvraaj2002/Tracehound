@@ -110,3 +110,28 @@ def test_key_is_persisted_as_hash(
     assert (row["prefix"], row["suffix"]) == (body["prefix"], body["suffix"])
     assert row["last_used_at"] is None
     assert row["revoked_at"] is None
+
+
+def test_at_most_five_active_keys_per_user(client: TestClient) -> None:
+    created = [client.post("/v1/api-keys", json={"name": f"key-{i}"}) for i in range(5)]
+    assert [r.status_code for r in created] == [201] * 5
+    assert client.post("/v1/api-keys", json={"name": "sixth"}).status_code == 409
+    # Revoked keys don't count, so revoking one frees a slot.
+    assert client.delete(f"/v1/api-keys/{created[0].json()['id']}").status_code == 204
+    assert client.post("/v1/api-keys", json={"name": "sixth"}).status_code == 201
+
+
+def test_rename_changes_only_the_name(client: TestClient, pool: ConnectionPool) -> None:
+    created = client.post("/v1/api-keys", json={"name": "ci"}).json()
+    response = client.put(f"/v1/api-keys/{created['id']}", json={"new_name": "deploy bot"})
+    assert response.status_code == 200
+    assert response.json()["name"] == "deploy bot"
+    with pool.connection() as conn:
+        row = conn.execute("SELECT * FROM api_keys WHERE id = %s", (created["id"],)).fetchone()
+    assert row is not None
+    assert row["name"] == "deploy bot"
+    assert (row["prefix"], row["suffix"]) == (created["prefix"], created["suffix"])
+    assert row["updated_at"] > row["created_at"]
+    # A revoked key can't be renamed.
+    assert client.delete(f"/v1/api-keys/{created['id']}").status_code == 204
+    assert client.put(f"/v1/api-keys/{created['id']}", json={"new_name": "x"}).status_code == 404

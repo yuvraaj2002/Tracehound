@@ -1,15 +1,41 @@
 import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react'
 import { Link } from 'react-router'
-import { ApiError, createApiKey, listApiKeys, revokeApiKey, type ApiKeyCreated, type ApiKeySummary } from '../lib/api'
+import { ApiError, createApiKey, listApiKeys, renameApiKey, revokeApiKey, type ApiKeyCreated, type ApiKeySummary } from '../lib/api'
 import Dialog from '../Dialog'
 import SignedInHeader from '../SignedInHeader'
 import '../auth.css'
 
 const nameLimit = 100
-const formatDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
-const formatTime = (iso: string) => new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+// Every key timestamp is shown in UTC, e.g. "Nov 2, 2026, 14:05 UTC", whatever the viewer's zone.
+const formatTime = (iso: string) => `${new Date(iso).toLocaleString(undefined, { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })} UTC`
 const message = (err: unknown, fallback: string) => err instanceof Error ? err.message : fallback
 const masked = (key: Pick<ApiKeySummary, 'prefix' | 'suffix'>) => `${key.prefix}…${key.suffix}`
+
+type SortField = 'created_at' | 'updated_at' | 'last_used_at'
+type Sort = { field: SortField, dir: 'asc' | 'desc' }
+
+// Sorts only the keys already loaded; the API keeps returning newest first. Never-used keys
+// sort after used ones in both directions.
+const sortKeys = (keys: ApiKeySummary[], { field, dir }: Sort) => [...keys].sort((a, b) => {
+  const x = a[field], y = b[field]
+  if (x === y) return 0
+  if (x === null) return 1
+  if (y === null) return -1
+  const order = Date.parse(x) - Date.parse(y)
+  return dir === 'asc' ? order : -order
+})
+
+function SortHeader({ field, label, sort, onSort }: { field: SortField, label: string, sort: Sort, onSort: (sort: Sort) => void }) {
+  const active = sort.field === field
+  const next: Sort = { field, dir: active && sort.dir === 'desc' ? 'asc' : 'desc' }
+  return (
+    <th scope="col" aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <button type="button" className="sort-button" data-active={active || undefined} onClick={() => onSort(next)}>
+        {label}<span className="sort-arrow" aria-hidden="true">{active ? (sort.dir === 'asc' ? '↑' : '↓') : '↕'}</span>
+      </button>
+    </th>
+  )
+}
 
 type Load = { status: 'loading' } | { status: 'ready', keys: ApiKeySummary[], next: string | null } | { status: 'error', message: string }
 
@@ -24,6 +50,8 @@ export default function ApiKeys() {
   const [moreError, setMoreError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [revoking, setRevoking] = useState<ApiKeySummary | null>(null)
+  const [renaming, setRenaming] = useState<ApiKeySummary | null>(null)
+  const [sort, setSort] = useState<Sort>({ field: 'created_at', dir: 'desc' })
   const [highlight, setHighlight] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
   const createButton = useRef<HTMLButtonElement>(null)
@@ -71,7 +99,21 @@ export default function ApiKeys() {
     setStatus(`Revoked “${key.name}”`)
   }
 
-  const dialogOpen = creating || revoking !== null
+  const onRenamed = (key: ApiKeySummary) => {
+    setLoad((current) => current.status === 'ready' ? { ...current, keys: current.keys.map((item) => item.id === key.id ? key : item) } : current)
+    setRenaming(null)
+    setHighlight(key.id)
+    setStatus(`Renamed to “${key.name}”`)
+  }
+
+  // Renaming a key revoked elsewhere: drop it from the list, as the server no longer lists it.
+  const onRenameGone = (key: ApiKeySummary) => {
+    setLoad((current) => current.status === 'ready' ? { ...current, keys: current.keys.filter((item) => item.id !== key.id) } : current)
+    setRenaming(null)
+    setStatus(`“${key.name}” was already revoked`)
+  }
+
+  const dialogOpen = creating || revoking !== null || renaming !== null
   const createAction = <button ref={createButton} type="button" className="button-primary" onClick={() => setCreating(true)}>Create API key <span aria-hidden="true">+</span></button>
 
   return (
@@ -99,17 +141,18 @@ export default function ApiKeys() {
               {createAction}
             </div>}
             {(load.status === 'loading' || (load.status === 'ready' && load.keys.length > 0)) && <table className="key-table">
-              <thead><tr><th scope="col">Name</th><th scope="col">Key</th><th scope="col">Created</th><th scope="col">Last used</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
+              <thead><tr><th scope="col">Name</th><th scope="col">Key</th><SortHeader field="created_at" label="Created" sort={sort} onSort={setSort} /><SortHeader field="updated_at" label="Updated" sort={sort} onSort={setSort} /><SortHeader field="last_used_at" label="Last used" sort={sort} onSort={setSort} /><th scope="col" className="key-action">Actions</th></tr></thead>
               <tbody>
                 {load.status === 'loading' && [0, 1, 2].map((row) => <tr key={row} className="key-skeleton" aria-hidden="true">
-                  {[0, 1, 2, 3, 4].map((cell) => <td key={cell}><span className="skeleton" /></td>)}
+                  {[0, 1, 2, 3, 4, 5].map((cell) => <td key={cell}><span className="skeleton" /></td>)}
                 </tr>)}
-                {load.status === 'ready' && load.keys.map((key) => <tr key={key.id} className={key.id === highlight ? 'is-new' : undefined}>
+                {load.status === 'ready' && sortKeys(load.keys, sort).map((key) => <tr key={key.id} className={key.id === highlight ? 'is-new' : undefined}>
                   <td data-label="Name" className="key-name">{key.name}</td>
                   <td data-label="Key"><code>{masked(key)}</code></td>
-                  <td data-label="Created">{formatDate(key.created_at)}</td>
+                  <td data-label="Created">{formatTime(key.created_at)}</td>
+                  <td data-label="Updated">{formatTime(key.updated_at)}</td>
                   <td data-label="Last used">{key.last_used_at ? formatTime(key.last_used_at) : 'Never'}</td>
-                  <td className="key-action"><button type="button" className="button-quiet button-danger" onClick={() => setRevoking(key)} aria-label={`Revoke ${key.name}`}>Revoke</button></td>
+                  <td className="key-action"><button type="button" className="button-quiet" onClick={() => setRenaming(key)} aria-label={`Rename ${key.name}`}>Rename</button><button type="button" className="button-quiet button-danger" onClick={() => setRevoking(key)} aria-label={`Revoke ${key.name}`}>Revoke</button></td>
                 </tr>)}
               </tbody>
             </table>}
@@ -128,6 +171,7 @@ export default function ApiKeys() {
         setCreating(false)
         if (key) { setHighlight(key.id); setStatus(`Created “${key.name}”`) }
       }} />}
+      {renaming && <RenameKeyDialog apiKey={renaming} fallbackFocus={createButton} onRenamed={onRenamed} onGone={onRenameGone} onClose={() => setRenaming(null)} />}
       {revoking && <RevokeKeyDialog apiKey={revoking} fallbackFocus={createButton} onRevoked={onRevoked} onClose={() => setRevoking(null)} />}
     </>
   )
@@ -156,7 +200,7 @@ function CreateKeyDialog({ fallbackFocus, onCreated, onClose }: { fallbackFocus:
     setError(null)
     try {
       const key = await createApiKey(trimmed)
-      onCreated({ id: key.id, name: key.name, prefix: key.prefix, suffix: key.suffix, created_at: key.created_at, last_used_at: null })
+      onCreated({ id: key.id, name: key.name, prefix: key.prefix, suffix: key.suffix, created_at: key.created_at, updated_at: key.updated_at, last_used_at: null })
       setCreated(key)
     } catch (err) {
       setError(message(err, 'Could not create the key.'))
@@ -259,6 +303,44 @@ function RevokeKeyDialog({ apiKey, fallbackFocus, onRevoked, onClose }: { apiKey
         <button type="button" className="button-quiet" onClick={onClose} disabled={pending} autoFocus>Cancel</button>
         <button type="button" className="button-primary button-danger-solid" onClick={() => void revoke()} disabled={pending}>{pending ? 'Revoking…' : 'Revoke key'}</button>
       </div>
+    </Dialog>
+  )
+}
+
+function RenameKeyDialog({ apiKey, fallbackFocus, onRenamed, onGone, onClose }: { apiKey: ApiKeySummary, fallbackFocus: RefObject<HTMLElement | null>, onRenamed: (key: ApiKeySummary) => void, onGone: (key: ApiKeySummary) => void, onClose: () => void }) {
+  const [name, setName] = useState(apiKey.name)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const trimmed = name.trim()
+  const unchanged = trimmed === apiKey.name
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!trimmed || unchanged || submitting) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      onRenamed(await renameApiKey(apiKey.id, trimmed))
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) onGone(apiKey)
+      else { setError(message(err, 'Could not rename the key.')); setSubmitting(false) }
+    }
+  }
+
+  return (
+    <Dialog labelledBy="rename-dialog-title" onDismiss={submitting ? null : onClose} fallbackFocus={fallbackFocus}>
+      <form className="dialog-form" onSubmit={submit}>
+        <h2 id="rename-dialog-title">Rename API key</h2>
+        <p className="dialog-key"><code>{masked(apiKey)}</code></p>
+        <label htmlFor="rename-key-name">Name</label>
+        <input id="rename-key-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={nameLimit} autoComplete="off" aria-describedby="rename-key-hint" aria-invalid={error ? true : undefined} autoFocus onFocus={(event) => event.target.select()} />
+        <p id="rename-key-hint" className="field-hint"><span>Only the name changes. The key keeps working as before.</span><span className="field-count">{name.length}/{nameLimit}</span></p>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <div className="dialog-actions">
+          <button type="button" className="button-quiet" onClick={onClose} disabled={submitting}>Cancel</button>
+          <button type="submit" className="button-primary" disabled={!trimmed || unchanged || submitting}>{submitting ? 'Saving…' : 'Save name'}</button>
+        </div>
+      </form>
     </Dialog>
   )
 }

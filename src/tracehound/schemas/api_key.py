@@ -13,6 +13,13 @@ class ApiKeyCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=100)
 
 
+class ApiKeyRenameRequest(BaseModel):
+    """Payload for ``PUT /v1/api-keys/{key_id}``: the key's new name."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    new_name: str = Field(min_length=1, max_length=100)
+
+
 class ApiKeyCreated(BaseModel):
     """Response for a new key. `key` is the raw key; it is returned here and never again."""
 
@@ -22,6 +29,7 @@ class ApiKeyCreated(BaseModel):
     prefix: str
     suffix: str
     created_at: AwareDatetime
+    updated_at: AwareDatetime  # changes on rename
 
 
 class ApiKeySummary(BaseModel):
@@ -32,6 +40,7 @@ class ApiKeySummary(BaseModel):
     prefix: str
     suffix: str
     created_at: AwareDatetime
+    updated_at: AwareDatetime  # changes on rename
     last_used_at: AwareDatetime | None = None
 
 

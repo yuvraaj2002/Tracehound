@@ -9,10 +9,10 @@ from uuid import UUID
 from fastapi.testclient import TestClient
 from psycopg_pool import ConnectionPool
 
-from tests.integration.test_api_key_db import client, pool, pytestmark, schema, user_id
+from tests.integration.test_api_key_db import client, engine, pool, pytestmark, schema, user_id
 from tracehound.helpers.integration_helper import SecretBox, integration_encryption_key
 
-__all__ = ["client", "pool", "pytestmark", "schema", "user_id"]
+__all__ = ["client", "engine", "pool", "pytestmark", "schema", "user_id"]
 
 GRAFANA_CLOUD = {
     "kind": "loki",

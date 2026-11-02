@@ -12,8 +12,8 @@ from sqlalchemy.exc import OperationalError
 from tracehound.api.app import create_app
 from tracehound.api.dependencies import get_api_key_management, get_token_verifier
 from tracehound.auth import InvalidToken, TokenVerifier
-from tracehound.helpers.api_key_helper import ApiKeyManagement
-from tracehound.schemas import ApiKeyCreated
+from tracehound.helpers.api_key_helper import ApiKeyLimitReached, ApiKeyManagement
+from tracehound.schemas import ApiKeyCreated, ApiKeySummary
 
 ISSUER = "https://project.supabase.co/auth/v1"
 USER_ID = uuid4()
@@ -60,9 +60,18 @@ class MemoryKeys:
             prefix=prefix,
             suffix=suffix,
             created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
         self.created.append((user_id, created))
         return created
+
+    def rename(self, user_id: UUID, key_id: UUID, new_name: str) -> ApiKeySummary | None:
+        for owner, key in self.created:
+            if owner == user_id and key.id == key_id:
+                key.name = new_name
+                key.updated_at = datetime.now(UTC)
+                return ApiKeySummary(**key.model_dump(exclude={"key"}))
+        return None
 
 
 class BrokenKeys:
@@ -189,3 +198,44 @@ def test_database_error_returns_500() -> None:
     response = client.post("/v1/api-keys", json={"name": "ci"}, headers=_auth())
     assert response.status_code == 500
     assert response.json() == {"detail": "Could not create the API key."}
+
+
+class FullKeys:
+    def create(self, user_id: UUID, name: str) -> ApiKeyCreated:
+        raise ApiKeyLimitReached(user_id)
+
+
+def test_sixth_active_key_returns_409() -> None:
+    client = TestClient(_app_with(FullKeys()))
+    response = client.post("/v1/api-keys", json={"name": "ci"}, headers=_auth())
+    assert response.status_code == 409
+    assert "5 active API keys" in response.json()["detail"]
+
+
+def test_renames_own_key(client: TestClient, keys: MemoryKeys) -> None:
+    key_id = client.post("/v1/api-keys", json={"name": "ci"}, headers=_auth()).json()["id"]
+    response = client.put(
+        f"/v1/api-keys/{key_id}", json={"new_name": "  deploy bot "}, headers=_auth()
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["name"] == "deploy bot"
+    assert body["updated_at"] >= body["created_at"]
+    assert "key" not in body
+
+
+def test_rename_unknown_key_returns_404(client: TestClient) -> None:
+    response = client.put(f"/v1/api-keys/{uuid4()}", json={"new_name": "x"}, headers=_auth())
+    assert response.status_code == 404
+
+
+@pytest.mark.parametrize(
+    "payload", [{}, {"new_name": ""}, {"new_name": "x" * 101}, {"new_name": "a", "x": 1}]
+)
+def test_rename_rejects_invalid_payload(client: TestClient, payload: dict[str, object]) -> None:
+    response = client.put(f"/v1/api-keys/{uuid4()}", json=payload, headers=_auth())
+    assert response.status_code == 422
+
+
+def test_rename_requires_auth(client: TestClient) -> None:
+    assert client.put(f"/v1/api-keys/{uuid4()}", json={"new_name": "x"}).status_code == 401

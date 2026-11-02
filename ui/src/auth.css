@@ -88,12 +88,19 @@
 .heading-note { max-width: 520px; margin: 14px 0 0; font-size: var(--text-base); line-height: var(--leading-relaxed); color: var(--color-muted); }
 .workspace-heading > .button-primary { flex-shrink: 0; }
 .key-list { margin-top: 28px; }
-.key-table { width: 100%; border-collapse: collapse; font-size: var(--text-base); }
+.key-table { width: 100%; border-collapse: collapse; font-size: var(--text-base); table-layout: fixed; }
+/* Six equal columns. The phone layout below switches to a grid and ignores these widths. */
+.key-table th { width: calc(100% / 6); }
 .key-table th { padding: 0 16px 12px 0; text-align: left; font-size: var(--text-2xs); font-weight: var(--weight-medium); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--color-muted); border-bottom: 1px solid var(--color-line); }
 .key-table td { padding: 16px 16px 16px 0; border-bottom: 1px solid var(--color-line); vertical-align: middle; font-variant-numeric: tabular-nums; color: var(--color-muted); }
 .key-table .key-name { color: var(--color-ink); font-weight: var(--weight-medium); letter-spacing: var(--tracking-tight); overflow-wrap: anywhere; }
 .key-table code, .dialog-key code { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--color-ink); }
-.key-table .key-action { padding-right: 0; text-align: right; }
+.key-table .key-action { padding-right: 0; }
+.key-table .key-action button { margin: 4px 8px 4px 0; }
+.sort-button { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; cursor: pointer; }
+.sort-button:hover, .sort-button[data-active] { color: var(--color-ink); }
+.sort-button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; border-radius: 2px; }
+.sort-arrow { width: 10px; text-align: center; }
 .key-table tr.is-new td { animation: key-new 2.4s ease-out; }
 @keyframes key-new { from, 30% { background: var(--color-soft); } to { background: transparent; } }
 .skeleton { display: block; height: 12px; width: 70%; border-radius: 6px; background: var(--color-soft); animation: skeleton 1.2s ease-in-out infinite alternate; }
@@ -327,6 +334,7 @@
   .key-table td[data-label]::before { content: attr(data-label); font-size: var(--text-2xs); font-weight: var(--weight-medium); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--color-muted); }
   .key-table .key-name, .key-table td[data-label='Key'] { grid-column: 1 / -1; }
   .key-table .key-action { grid-column: 1 / -1; justify-self: start; text-align: left; }
+  .key-table .key-action button { margin: 0 8px 0 0; }
   .key-skeleton td { grid-column: 1 / -1; }
   .key-skeleton td:last-child .skeleton { margin-left: 0; }
   .dialog { padding: 22px 20px; }
