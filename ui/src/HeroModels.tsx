@@ -1,14 +1,14 @@
 import { useEffect, useState, type CSSProperties } from 'react'
-import { providerLogo } from './lib/providers'
+import ProviderMark from './ProviderMark'
 
 /** One-word model names the hero cycles through. As many as agents, so all six always differ. */
 const models = [
-  { name: 'Claude', provider: 'anthropic' },
-  { name: 'Llama', provider: 'ollama' },
-  { name: 'Qwen', provider: 'ollama' },
-  { name: 'Gemini', provider: 'google' },
-  { name: 'GPT', provider: 'openai' },
-  { name: 'DeepSeek', provider: 'ollama' },
+  { name: 'Nemotron 3 Ultra', provider: 'nvidia' },
+  { name: 'Gemma 4 26B', provider: 'google' },
+  { name: 'Inkling Small', provider: 'thinkingmachines' },
+  { name: 'North Mini Code', provider: 'cohere' },
+  { name: 'LFM 2.5 2.6B', provider: 'liquid' },
+  { name: 'Flint v1.0', provider: 'recursive' },
 ]
 
 /**
@@ -44,10 +44,9 @@ export default function HeroModels() {
   }, [])
 
   return (
-    <ul className="hero-souls" aria-label="Each agent runs on a model you choose, such as Claude, Llama, Qwen, Gemini, GPT or DeepSeek">
+    <ul className="hero-souls" aria-label="Each agent runs on a model you choose, such as Nemotron 3 Ultra, Gemma 4 26B, Inkling Small, North Mini Code, LFM 2.5 2.6B or Flint v1.0">
       {souls.map((soul, index) => {
         const model = models[(index + tick) % models.length]!
-        const logo = providerLogo(model.provider)
         // A new key each cycle restarts the rise; the first cycle waits for the hero image to land.
         const delay = (tick === 0 ? 0.9 : 0) + index * 0.1
         return (
@@ -57,7 +56,7 @@ export default function HeroModels() {
               '--to-x': `${soul.to[0]}%`, '--to-y': `${soul.to[1]}%`,
               '--agent-color': soul.color, '--delay': `${delay}s`,
             } as CSSProperties}>
-            <span className="provider-logo" style={{ maskImage: `url(${logo})`, WebkitMaskImage: `url(${logo})` }} />
+            <ProviderMark id={model.provider} />
             {model.name}
           </li>
         )

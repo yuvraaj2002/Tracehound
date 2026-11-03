@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import Engine
 
+from tracehound.api.agent_models import router as agent_models_router
 from tracehound.api.api_keys import router as api_keys_router
 from tracehound.api.catalog import router as catalog_router
 from tracehound.api.incidents import router as incidents_router
@@ -88,5 +89,6 @@ def create_app(engine_factory: Callable[[], Engine] = _default_engine) -> FastAP
     app.include_router(integrations_router)
     app.include_router(catalog_router)
     app.include_router(plans_router)
+    app.include_router(agent_models_router)
     app.include_router(me_router)
     return app

@@ -53,3 +53,5 @@
   .hero-soul .provider-logo { width: 10px; height: 10px; }
 }
 @media (prefers-reduced-motion: reduce) { .hero-soul { animation: none; } }
+.provider-monogram { display: inline-grid; place-items: center; background: none; border-radius: 4px; border: 1px solid currentColor; font-size: 9px; font-weight: 700; line-height: 1; }
+.provider-logo-large.provider-monogram { font-size: 16px; border-radius: 8px; }

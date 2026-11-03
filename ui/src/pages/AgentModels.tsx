@@ -65,7 +65,7 @@ export default function AgentModels() {
           <div className="workspace-heading">
             <div><p className="eyebrow"><span /> Agents</p><h1>AI models</h1><p className="heading-note">Pick the model each investigator thinks with. A small local model keeps data on your servers; a hosted one reasons more deeply.</p></div>
           </div>
-          <p className="billing-preview" role="note"><span aria-hidden="true">●</span> Preview: sample providers and choices until model settings go live. Saves last until you reload.</p>
+          <p className="billing-preview" role="note"><span aria-hidden="true">●</span> Preview: the models are live, but each agent’s choice is not stored yet and resets when you reload.</p>
 
           <div className={`models-layout${open ? ' is-open' : ''}`}>
             <section className="roster" aria-roledescription="carousel" aria-label="Agents" onKeyDown={onBeltKey}>

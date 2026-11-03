@@ -1,0 +1,30 @@
+{
+  "gateway": {
+    "name": "OpenRouter",
+    "base_url": "https://openrouter.ai/api/v1",
+    "api_key_env": "OPENROUTER_API_KEY"
+  },
+  "providers": [
+    {
+      "id": "nvidia",
+      "label": "NVIDIA",
+      "models": [
+        "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "nvidia/nemotron-3.5-super-vl:free",
+        "nvidia/nemotron-3.5-lightning:free",
+        "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        "nvidia/nemotron-3.5-content-safety:free",
+        "nvidia/llama-nemotron-rerank-vl-1b-v2:free"
+      ]
+    },
+    { "id": "dots-studio", "label": "dots.studio", "models": ["dots-studio/dots-3-note-preview:free"] },
+    { "id": "thinkingmachines", "label": "Thinking Machines", "models": ["thinkingmachines/inkling:free", "thinkingmachines/inkling-small:free"] },
+    { "id": "cohere", "label": "Cohere", "models": ["cohere/north-mini-code:free"] },
+    { "id": "xingchen-agi", "label": "Xingchen AGI", "models": ["xingchen-agi/xing4.0-29b-a4b:free"] },
+    { "id": "recursive", "label": "Recursive", "models": ["recursive/flint-v1.0:free"] },
+    { "id": "respan", "label": "Respan", "models": ["respan/span-01-lite", "respan/span-01-lite:free"] },
+    { "id": "liquid", "label": "Liquid AI", "models": ["liquid/lfm-2.5-2.6b:free"] },
+    { "id": "google", "label": "Google", "models": ["google/gemma-4-26b-a4b-it:free"] }
+  ],
+  "default": { "provider": "nvidia", "model": "nvidia/nemotron-3.5-lightning:free" }
+}

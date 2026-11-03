@@ -44,6 +44,7 @@ from tracehound.schemas.investigation import (
     InvestigationResult,
 )
 from tracehound.schemas.me import Me
+from tracehound.schemas.model_catalog import ModelCatalog, ModelChoice, ModelProviderInfo
 from tracehound.schemas.plan import BillingInterval, PlanList, PlanPrice, PlanSummary
 from tracehound.schemas.telemetry import Deploy, Edge, ServiceNode, Span, Topology
 from tracehound.schemas.triage import (
@@ -89,6 +90,9 @@ __all__ = [
     "InvestigationResult",
     "InvestigationScope",
     "Me",
+    "ModelCatalog",
+    "ModelChoice",
+    "ModelProviderInfo",
     "PlanList",
     "PlanPrice",
     "PlanSummary",
