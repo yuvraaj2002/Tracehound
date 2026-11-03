@@ -7,11 +7,12 @@
  */
 
 import { apiFetch } from './api'
-import { defaultChoice, gateway, modelName } from './providers'
+import type { ModelDetails } from './modelDetails'
+import { defaultChoice, modelName } from './providers'
 
 export type AgentId = 'triage' | 'logs' | 'metrics' | 'dependency' | 'deploy' | 'hypothesis'
 
-export type ModelOption = { id: string, label: string, context_tokens: number, note: string }
+export type ModelOption = { id: string, label: string, details: ModelDetails }
 
 export type Provider = {
   id: string
@@ -33,13 +34,13 @@ export type AgentModelConfig = { provider: string, model: string, creativity: Cr
 
 export type AgentModels = { providers: Provider[], defaults: AgentModelConfig, agents: Record<AgentId, AgentModelConfig> }
 
-type ApiCatalog = { providers: { id: string, label: string, models: string[] }[], default: { provider: string, model: string } }
+type ApiCatalog = { providers: { id: string, label: string, models: ModelDetails[] }[], default: { provider: string, model: string } }
 
 const toProviders = (api: ApiCatalog): Provider[] => api.providers.map((provider) => ({
-  id: provider.id, label: provider.label, hosting: `Via ${gateway.name}`, connected: true,
+  id: provider.id, label: provider.label, hosting: '', connected: true,
   // A model offered with and without a `:free` suffix is listed once, under its first id.
-  models: provider.models.filter((id, i, all) => all.findIndex((other) => modelName(other) === modelName(id)) === i)
-    .map((id) => ({ id, label: modelName(id), context_tokens: 0, note: `${provider.label} model, served through ${gateway.name}.` })),
+  models: provider.models.filter((m, i, all) => all.findIndex((other) => modelName(other.id) === modelName(m.id)) === i)
+    .map((details) => ({ id: details.id, label: details.listed ? details.name : modelName(details.id), details })),
 }))
 
 const defaults: AgentModelConfig = { ...defaultChoice, creativity: 'precise' } // matches the API's default
@@ -57,7 +58,7 @@ const delay = <T,>(value: T, ms = 350) => new Promise<T>((resolve) => setTimeout
 
 /** The providers and models come from the API; each agent's saved choice is still a stub. */
 export const getAgentModels = async (): Promise<AgentModels> => {
-  const catalog = await apiFetch<ApiCatalog>('/v1/agent-models/providers')
+  const catalog = await apiFetch<ApiCatalog>('/v1/agent-models/catalog')
   return { providers: toProviders(catalog), defaults, agents: structuredClone(saved) }
 }
 

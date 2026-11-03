@@ -3,26 +3,31 @@
 .provider-logo-large { width: 30px; height: 30px; }
 
 .models { width: min(100% - 9%, 1512px); margin: 0 auto; padding: 120px 0 40px; }
-.models-providers { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 44px 0 0; padding: 0; list-style: none; }
-.models-provider { display: grid; grid-template-rows: auto 1fr auto; gap: 18px; padding: 24px; border: 1px solid var(--color-line); border-radius: 12px; color: var(--color-ink); transition: border-color .2s; }
-.models-provider:hover { border-color: var(--color-primary); }
-.models-provider h3 { margin: 0 0 4px; font-size: var(--text-lg); font-weight: var(--weight-medium); letter-spacing: var(--tracking-tight); }
-.models-provider p { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--color-muted); }
-.models-tag { justify-self: start; padding: 3px 9px; border: 1px solid var(--color-line); border-radius: 999px; font-size: var(--text-2xs); font-weight: var(--weight-medium); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--color-muted); }
-.models-tag.is-live { border-color: currentColor; color: var(--agent-metrics); }
+.models-explorer { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; margin-top: 44px; }
+.models-rail { display: grid; align-content: start; gap: 4px; padding: 8px; border: 1px solid var(--color-line); border-radius: 12px; }
+.models-tab { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 0; border-radius: 8px; background: none; font: inherit; font-size: var(--text-md); color: var(--color-muted); text-align: left; cursor: pointer; overflow: hidden; transition: background .2s, color .2s; }
+.models-tab:hover { background: var(--color-soft); color: var(--color-ink); }
+.models-tab[aria-selected='true'] { background: var(--color-soft); color: var(--color-ink); font-weight: var(--weight-medium); }
+.models-tab:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+.models-tab .provider-logo { width: 18px; height: 18px; }
+.models-tab-name { flex: 1; }
+.models-tab-count { font-size: var(--text-2xs); font-variant-numeric: tabular-nums; color: var(--color-muted); }
+.models-tab-timer { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--color-primary); transform-origin: left; animation: tab-timer 1.5s linear both; }
+@keyframes tab-timer { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 
-.models-lineup { margin-top: 28px; padding: 24px; border: 1px solid var(--color-line); border-radius: 12px; }
-.models-lineup-title { margin: 0 0 16px; font-size: var(--text-2xs); font-weight: var(--weight-medium); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--color-muted); }
-.models-lineup ol { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
-.models-lineup li { display: grid; gap: 10px; padding-top: 14px; border-top: 2px solid var(--agent-color); }
-.models-agent { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; font-size: var(--text-md); font-weight: var(--weight-medium); color: var(--color-ink); }
-.models-agent .agent-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--agent-color); align-self: center; }
-.models-agent small { width: 100%; font-size: var(--text-2xs); font-weight: var(--weight-medium); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--agent-color); }
-.models-pick { display: inline-flex; align-items: center; gap: 7px; justify-self: start; padding: 6px 10px; border: 1px solid var(--color-line); border-radius: 999px; font-size: var(--text-xs); color: var(--color-ink); }
-
-
-
-/* Hero: model names that rise out of each agent like a soul, rest above the head, then fade. */
+.models-stage { padding: 28px; border: 1px solid var(--color-line); border-radius: 12px; min-height: 100%; animation: stage-in .35s ease both; }
+@keyframes stage-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.models-stage-head { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
+.models-stage-head h3 { margin: 0 0 2px; font-size: var(--text-xl); font-weight: var(--weight-medium); letter-spacing: var(--tracking-tight); }
+.models-stage-head p { margin: 0; font-size: var(--text-sm); color: var(--color-muted); }
+.models-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.models-cards li { animation: stage-in .4s ease both; animation-delay: calc(var(--i) * 60ms); }
+.model-chip { display: grid; gap: 12px; align-content: start; width: 100%; height: 100%; padding: 18px; border: 1px solid var(--color-line); border-radius: 10px; background: var(--color-white); color: var(--color-ink); transition: border-color .2s, transform .2s, box-shadow .2s; }
+.model-chip:hover { border-color: var(--color-primary); transform: translateY(-2px); box-shadow: 0 10px 24px color-mix(in srgb, var(--color-primary) 14%, transparent); }
+.model-chip strong { font-size: var(--text-md); font-weight: var(--weight-medium); letter-spacing: var(--tracking-tight); }
+.model-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.model-tags span { padding: 2px 8px; border-radius: 999px; background: var(--color-soft); font-size: var(--text-2xs); color: var(--color-muted); }
+.model-chip:hover /* Hero: model names that rise out of each agent like a soul, rest above the head, then fade. */
 .hero-souls { position: absolute; inset: 0; z-index: 1; margin: 0; padding: 0; list-style: none; pointer-events: none; }
 .hero-soul {
   position: absolute; left: var(--to-x); top: var(--to-y); display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px 5px 9px;
@@ -43,15 +48,16 @@
 }
 
 @media (max-width: 1000px) {
-  .models-providers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .models-lineup ol { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 20px; }
+  .models-explorer { grid-template-columns: 1fr; }
+  .models-rail { grid-auto-flow: column; grid-auto-columns: max-content; overflow-x: auto; }
+  .models-tab-count { display: none; }
 }
 @media (max-width: 640px) {
   .models { padding-top: 80px; }
-  .models-providers, .models-lineup ol { grid-template-columns: 1fr 1fr; }
+  .models-stage { padding: 18px; }
   .hero-soul { gap: 4px; padding: 3px 7px; font-size: 10px; }
   .hero-soul .provider-logo { width: 10px; height: 10px; }
 }
-@media (prefers-reduced-motion: reduce) { .hero-soul { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .hero-soul, .models-stage, .models-cards li, .models-tab-timer, .models-tab-timer { animation: none; } }
 .provider-monogram { display: inline-grid; place-items: center; background: none; border-radius: 4px; border: 1px solid currentColor; font-size: 9px; font-weight: 700; line-height: 1; }
 .provider-logo-large.provider-monogram { font-size: 16px; border-radius: 8px; }

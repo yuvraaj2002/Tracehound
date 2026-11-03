@@ -44,7 +44,14 @@ from tracehound.schemas.investigation import (
     InvestigationResult,
 )
 from tracehound.schemas.me import Me
-from tracehound.schemas.model_catalog import ModelCatalog, ModelChoice, ModelProviderInfo
+from tracehound.schemas.model_catalog import (
+    FullModelCatalog,
+    ModelCatalog,
+    ModelChoice,
+    ModelDetails,
+    ModelProviderInfo,
+    ProviderWithModels,
+)
 from tracehound.schemas.plan import BillingInterval, PlanList, PlanPrice, PlanSummary
 from tracehound.schemas.telemetry import Deploy, Edge, ServiceNode, Span, Topology
 from tracehound.schemas.triage import (
@@ -69,6 +76,7 @@ __all__ = [
     "EvidenceId",
     "EvidenceSource",
     "Finding",
+    "FullModelCatalog",
     "Hypothesis",
     "HypothesisStatus",
     "IncidentAccepted",
@@ -92,10 +100,12 @@ __all__ = [
     "Me",
     "ModelCatalog",
     "ModelChoice",
+    "ModelDetails",
     "ModelProviderInfo",
     "PlanList",
     "PlanPrice",
     "PlanSummary",
+    "ProviderWithModels",
     "ServiceCount",
     "ServiceNode",
     "Severity",

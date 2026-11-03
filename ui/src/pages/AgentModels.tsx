@@ -2,6 +2,9 @@ import { useEffect, useState, type CSSProperties, type KeyboardEvent } from 'rea
 import { Link } from 'react-router'
 import { agentRoster } from '../lib/agents'
 import { getAgentModels, saveAgentModel, type AgentId, type AgentModelConfig, type AgentModels as Catalog, type Creativity } from '../lib/modelsStub'
+import ModelDetailsPanel from '../ModelDetailsPanel'
+import ModelSelect from '../ModelSelect'
+import { tokens } from '../lib/modelDetails'
 import SignedInHeader from '../SignedInHeader'
 import '../auth.css'
 
@@ -133,6 +136,7 @@ function ModelCard({ agent, catalog, draft, saving, onChange, onDiscard, onSave,
   const config = draft ?? saved
   const provider = catalog.providers.find((p) => p.id === config.provider) ?? catalog.providers[0]
   const model = provider.models.find((m) => m.id === config.model) ?? provider.models[0]
+  const options = provider.models.map((m) => ({ id: m.id, label: m.label, hint: m.details.context_length ? `${tokens(m.details.context_length)} context` : undefined }))
   const dirty = !same(config, saved)
   const isDefault = same(config, catalog.defaults)
 
@@ -143,33 +147,20 @@ function ModelCard({ agent, catalog, draft, saving, onChange, onDiscard, onSave,
 
   return (
     <aside id="model-card" className="model-card" aria-labelledby="model-card-title" style={{ '--agent': agent.color } as CSSProperties}>
-      <header className="model-card-head">
-        <img src={agent.image} alt="" />
-        <div>
-          <p className="eyebrow"><span /> {agent.specialty} agent</p>
-          <h2 id="model-card-title">{agent.name}</h2>
-          <p className="model-card-job">{agent.job}</p>
-        </div>
-        <button type="button" className="model-card-close" onClick={onClose} aria-label="Close model settings">×</button>
-      </header>
-
-
-      <fieldset className="model-field">
-        <legend>Provider</legend>
-        <div className="provider-grid">
-          {catalog.providers.map((p) => <label key={p.id} className="provider-option" data-disabled={!p.connected || undefined}>
-            <input type="radio" name={`provider-${agent.id}`} value={p.id} checked={p.id === provider.id} disabled={!p.connected} onChange={() => pickProvider(p.id)} />
-            <span><strong>{p.label}</strong><small>{p.connected ? p.hosting : 'Add an API key to use (coming soon)'}</small></span>
-          </label>)}
-        </div>
-      </fieldset>
+      <h2 id="model-card-title" className="sr-only">{agent.name}, {agent.specialty} agent: model settings</h2>
 
       <div className="model-field">
-        <label htmlFor={`model-${agent.id}`}>Model</label>
-        <select id={`model-${agent.id}`} value={model.id} onChange={(event) => onChange({ ...config, model: event.target.value })}>
-          {provider.models.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-        </select>
-        <p className="field-hint"><span>{model.note}</span></p>
+        <div className="model-field-top">
+          <span className="model-field-label">Provider</span>
+          <button type="button" className="model-card-close" onClick={onClose} aria-label="Close model settings">×</button>
+        </div>
+        <ModelSelect label={`Provider for ${agent.name}`} value={provider.id} options={catalog.providers.filter((p) => p.connected)} onChange={pickProvider} />
+      </div>
+
+      <div className="model-field">
+        <span className="model-field-label">Model</span>
+        <ModelSelect label={`Model for ${agent.name}`} value={model.id} options={options} onChange={(id) => onChange({ ...config, model: id })} />
+        <ModelDetailsPanel model={model.details} />
       </div>
 
       <fieldset className="model-field">

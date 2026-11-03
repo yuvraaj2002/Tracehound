@@ -92,8 +92,8 @@ function App() {
 
         <InvestigationFlow />
         <SupportedIntegrations />
-        <ModelProviders />
         <ServiceCatalog />
+        <ModelProviders />
         <Pricing />
       </main>
       <Footer />

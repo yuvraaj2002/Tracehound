@@ -101,7 +101,6 @@ export default function InvestigationFlow() {
           {playing && <span className="journey-loop" aria-hidden="true">Live · looping</span>}
         </div>
       </div>
-      <div className="principles"><div><span>01</span><h3>Evidence before assertions.</h3><p>Follow findings back to their source, time, and identifier.</p></div><div><span>02</span><h3>Uncertainty stays visible.</h3><p>See what supports an explanation—and what still needs checking.</p></div><div><span>03</span><h3>Read-only by design.</h3><p>Investigate your telemetry. Keep production changes under human control.</p></div></div>
     </section>
   )
 }
