@@ -9,6 +9,7 @@ const nav = [
   { group: 'Getting started', items: [{ id: 'introduction', label: 'Introduction' }, { id: 'quickstart', label: 'Quickstart' }, { id: 'authentication', label: 'Authentication' }] },
   { group: 'Investigations', items: [{ id: 'create-investigation', label: 'Start an investigation', method: 'POST' }, { id: 'list-investigations', label: 'List investigations', method: 'GET' }, { id: 'get-investigation', label: 'Get an investigation', method: 'GET' }] },
   { group: 'Service catalog', items: [{ id: 'put-catalog', label: 'Upload the catalog', method: 'PUT' }, { id: 'get-catalog', label: 'Get the catalog', method: 'GET' }] },
+  { group: 'Agent configuration', items: [{ id: 'get-model-catalog', label: 'List the models', method: 'GET' }, { id: 'get-agent-models', label: 'Get your agents’ models', method: 'GET' }, { id: 'put-agent-model', label: 'Set an agent’s model', method: 'PUT' }] },
   { group: 'Reference', items: [{ id: 'errors', label: 'Errors' }] },
 ]
 
@@ -44,6 +45,7 @@ const errors = [
   { code: '401', title: 'Unauthorized', description: 'The API key is missing, malformed or revoked.' },
   { code: '404', title: 'Not found', description: 'No incident with that id belongs to your account.' },
   { code: '412', title: 'Integration not configured', description: <>The account is missing one of the four integrations (logs, metrics, dependency traces, deploys). <code>detail</code> names the ones to connect.</> },
+  { code: '428', title: 'Agents not configured', description: <>The account has not chosen a model for any agent yet, so no investigation can start. Pick one on the <Link to="/app/models">Agent configuration</Link> page or with <a href="#put-agent-model"><code>PUT /v1/agent-models/preferences/{'{agent}'}</code></a>, then retry. This is separate from <code>412</code>, which is about integrations.</> },
   { code: '422', title: 'Unprocessable', description: <>The body failed validation. <code>detail</code> lists each field that is wrong.</> },
   { code: '500', title: 'Server error', description: 'Tracehound could not store or load the incident. Retry with backoff.' },
 ]
@@ -98,6 +100,9 @@ const responses = {
 }`,
   '412': `{
   "detail": "Integration is not configured for: metrics, deploys."
+}`,
+  '428': `{
+  "detail": "No models are configured for your agents. Choose a model on the Agent configuration page, or with PUT /v1/agent-models/preferences/{agent}, before starting an investigation."
 }`,
   '422': `{
   "detail": [
@@ -248,6 +253,112 @@ const catalogResponses = {
 const getCatalogResponses = {
   '200': catalogResponses['200'],
   '404': `{ "detail": "No catalog uploaded." }`,
+}
+
+const agentIds = ['triage', 'logs', 'metrics', 'dependency', 'deploy', 'hypothesis']
+const choiceExample = `{
+  "provider": "nvidia",
+  "model": "nvidia/nemotron-3.5-lightning:free"
+}`
+
+const modelCatalogFields: Param[] = [
+  { name: 'providers', type: 'array', required: true, description: <>Every provider Tracehound offers, each with an <code>id</code>, a <code>label</code> and its <code>models</code>.</> },
+  { name: 'providers[].models[].id', type: 'string', required: true, description: <>The model id to send when you choose it, such as <code>google/gemma-4-26b-a4b-it:free</code>.</> },
+  { name: 'providers[].models[].name', type: 'string', required: true, description: 'The model’s display name.' },
+  { name: 'providers[].models[].description', type: 'string | null', required: true, description: 'What the model is, in full sentences.' },
+  { name: 'providers[].models[].context_length', type: 'integer | null', required: true, description: 'How many tokens of input the model can take in at once.' },
+  { name: 'providers[].models[].max_output_tokens', type: 'integer | null', required: true, description: 'The longest answer the model can give, in tokens.' },
+  { name: 'providers[].models[].released_at', type: 'date | null', required: true, description: 'When the model was released.' },
+  { name: 'providers[].models[].listed', type: 'boolean', required: true, description: <><code>false</code> when little is known about a model; the fields above are then empty.</> },
+  { name: 'default', type: 'object', required: true, description: <>A general default, as <code>provider</code> and <code>model</code>.</> },
+]
+const modelCatalogSample = `curl ${baseUrl}/v1/agent-models/catalog \\
+  -H "Authorization: Bearer $TRACEHOUND_API_KEY"`
+const modelCatalogResponses = {
+  '200': `{
+  "providers": [
+    {
+      "id": "google",
+      "label": "Google",
+      "models": [
+        {
+          "id": "google/gemma-4-26b-a4b-it:free",
+          "name": "Gemma 4 26B A4B",
+          "description": "Gemma 4 26B A4B IT is an instruction-tuned Mixture-of-Experts (MoE) model from Google DeepMind...",
+          "context_length": 262144,
+          "max_output_tokens": 32768,
+          "released_at": "2026-04-03",
+          "listed": true,
+          ...
+        }
+      ]
+    },
+    ...
+  ],
+  "default": { "provider": "nvidia", "model": "nvidia/nemotron-3.5-lightning:free" }
+}`,
+  '401': `{ "detail": "Missing or invalid access token." }`,
+  '502': `{ "detail": "Model details are unavailable." }`,
+}
+
+const agentModelFields: Param[] = [
+  { name: 'agents', type: 'object', required: true, description: <>One entry for each of <code>{agentIds.join('</code>, <code>')}</code>, with the <code>provider</code> and <code>model</code> that agent runs on. It is your choice, or the default for an agent you have not chosen for.</> },
+  { name: 'defaults', type: 'object', required: true, description: 'What each agent uses until you choose, in the same shape as agents.' },
+  { name: 'customized', type: 'array', required: true, description: 'The agents you have chosen a model for.' },
+  { name: 'configured', type: 'boolean', required: true, description: <><code>false</code> until you have chosen a model for at least one agent. Starting an investigation fails with <code>428</code> until then.</> },
+  { name: 'message', type: 'string | null', required: true, description: <>When <code>configured</code> is <code>false</code>, a sentence you can show to your user as it is. Otherwise <code>null</code>.</> },
+  { name: 'updated_at', type: 'datetime | null', required: true, description: <>When you last saved a choice, or <code>null</code> if you never have.</> },
+]
+const agentModelsSample = `curl ${baseUrl}/v1/agent-models/preferences \\
+  -H "Authorization: Bearer $TRACEHOUND_API_KEY"`
+const agentModelsResponses = {
+  '200': `{
+  "agents": {
+    "triage": { "provider": "nvidia", "model": "nvidia/nemotron-3-ultra-550b-a55b:free" },
+    "logs": { "provider": "google", "model": "google/gemma-4-26b-a4b-it:free" },
+    "metrics": { "provider": "nvidia", "model": "nvidia/nemotron-3.5-lightning:free" },
+    "dependency": { "provider": "google", "model": "google/gemma-4-26b-a4b-it:free" },
+    "deploy": { "provider": "cohere", "model": "cohere/north-mini-code:free" },
+    "hypothesis": { "provider": "thinkingmachines", "model": "thinkingmachines/inkling:free" }
+  },
+  "defaults": { ... },
+  "customized": ["logs"],
+  "configured": true,
+  "message": null,
+  "updated_at": "2026-11-03T13:42:08Z"
+}`,
+  '200 (not configured)': `{
+  "agents": { ...the defaults... },
+  "defaults": { ... },
+  "customized": [],
+  "configured": false,
+  "message": "The models for your agents are not configured yet. Choose a model for each agent before starting an investigation.",
+  "updated_at": null
+}`,
+  '401': `{ "detail": "Missing or invalid access token." }`,
+}
+
+const putAgentFields: Param[] = [
+  { name: 'agent', type: 'path', required: true, description: <>One of <code>{agentIds.join('</code>, <code>')}</code>.</> },
+  { name: 'provider', type: 'string', required: true, description: <>The provider’s <code>id</code> from the model list, such as <code>nvidia</code>.</> },
+  { name: 'model', type: 'string', required: true, description: <>A model <code>id</code> from the model list. It must belong to <code>provider</code>.</> },
+]
+const putAgentSample = `curl -X PUT ${baseUrl}/v1/agent-models/preferences/logs \\
+  -H "Authorization: Bearer $TRACEHOUND_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '${indented(choiceExample, '  ')}'`
+const putAgentResponses = {
+  '200': `{
+  "agents": { "logs": { "provider": "nvidia", "model": "nvidia/nemotron-3.5-lightning:free" }, ... },
+  "defaults": { ... },
+  "customized": ["logs"],
+  "configured": true,
+  "message": null,
+  "updated_at": "2026-11-03T13:42:08Z"
+}`,
+  '422': `{
+  "detail": "'nvidia/nemotron-3.5-lightning:free' is not offered by 'google'."
+}`,
 }
 
 const listParams: Param[] = [
@@ -438,6 +549,57 @@ export default function ApiDocs() {
               <div className="docs-endpoint-code">
                 <CodeBlock label="cURL" code={getCatalogSample} />
                 <ResponsePanel responses={getCatalogResponses} />
+              </div>
+            </section>
+
+            <section id="get-model-catalog" className="docs-section docs-endpoint">
+              <div className="docs-endpoint-copy">
+                <h2>List the models</h2>
+                <p className="docs-route"><span className="docs-method is-get">GET</span><code>/v1/agent-models/catalog</code></p>
+                <p>Returns every model Tracehound offers, grouped by provider, with the facts you need to choose: what the model is, how much it can take in and how much it can answer. Use the <code>id</code> values with <a href="#put-agent-model"><code>PUT /v1/agent-models/preferences/{'{agent}'}</code></a>.</p>
+
+                <h3>Response <span className="docs-status is-ok">200</span></h3>
+                <ParamList params={modelCatalogFields} />
+              </div>
+
+              <div className="docs-endpoint-code">
+                <CodeBlock label="cURL" code={modelCatalogSample} />
+                <ResponsePanel responses={modelCatalogResponses} />
+              </div>
+            </section>
+
+            <section id="get-agent-models" className="docs-section docs-endpoint">
+              <div className="docs-endpoint-copy">
+                <h2>Get your agents’ models</h2>
+                <p className="docs-route"><span className="docs-method is-get">GET</span><code>/v1/agent-models/preferences</code></p>
+                <p>Returns the model each of the six agents runs on. An agent you have not chosen for shows its default and is missing from <code>customized</code>. If you have not chosen for any agent, the response is still <code>200</code>, with <code>configured: false</code> and a <code>message</code> to show, and <a href="#create-investigation">starting an investigation</a> fails with <code>428</code> until you do.</p>
+
+                <h3>Response <span className="docs-status is-ok">200</span></h3>
+                <ParamList params={agentModelFields} />
+              </div>
+
+              <div className="docs-endpoint-code">
+                <CodeBlock label="cURL" code={agentModelsSample} />
+                <ResponsePanel responses={agentModelsResponses} />
+              </div>
+            </section>
+
+            <section id="put-agent-model" className="docs-section docs-endpoint">
+              <div className="docs-endpoint-copy">
+                <h2>Set an agent’s model</h2>
+                <p className="docs-route"><span className="docs-method is-put">PUT</span><code>/v1/agent-models/preferences/{'{agent}'}</code></p>
+                <p>Chooses the model one agent runs on. Your other agents keep their current choice, and sending the same choice again changes nothing. A model that is not on the list, or that belongs to a different provider, is rejected with <code>422</code> and nothing is saved. You can also do this on the <Link to="/app/models">Agent configuration</Link> page.</p>
+
+                <h3>Path and body</h3>
+                <ParamList params={putAgentFields} />
+
+                <h3>Response <span className="docs-status is-ok">200</span></h3>
+                <p>The same shape as <a href="#get-agent-models">Get your agents’ models</a>, after the change.</p>
+              </div>
+
+              <div className="docs-endpoint-code">
+                <CodeBlock label="cURL" code={putAgentSample} />
+                <ResponsePanel responses={putAgentResponses} />
               </div>
             </section>
 

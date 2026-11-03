@@ -7,7 +7,6 @@ export type ConfigProvider = { id: string, label: string, models: string[] }
 const logos: Record<string, string> = { nvidia: '/providers/nvidia.svg', google: '/providers/google.svg' }
 
 export const gateway = config.gateway
-export const defaultChoice = config.default
 export const configProviders: ConfigProvider[] = config.providers
 
 /** A model id without its provider prefix and `:free` suffix, e.g. "nemotron-3.5-lightning". */

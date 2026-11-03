@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { Link } from 'react-router'
 import { agentRoster } from '../lib/agents'
-import { getAgentModels, saveAgentModel, type AgentId, type AgentModelConfig, type AgentModels as Catalog, type Creativity } from '../lib/modelsStub'
+import { getAgentModels, saveAgentModel, type AgentId, type AgentModelConfig, type AgentModels as Catalog } from '../lib/agentModels'
 import ModelDetailsPanel from '../ModelDetailsPanel'
 import ModelSelect from '../ModelSelect'
 import { tokens } from '../lib/modelDetails'
@@ -9,13 +9,8 @@ import SignedInHeader from '../SignedInHeader'
 import '../auth.css'
 
 const count = agentRoster.length
-const creativityLevels: { id: Creativity, label: string, hint: string }[] = [
-  { id: 'precise', label: 'Precise', hint: 'Sticks closely to the evidence and gives the same answer on a rerun. Best for investigations.' },
-  { id: 'balanced', label: 'Balanced', hint: 'Mostly steady, with room to suggest less obvious causes.' },
-  { id: 'creative', label: 'Creative', hint: 'Explores more possibilities. Answers vary more between runs.' },
-]
 const without = <T extends object>(record: T, key: keyof T): T => { const next = { ...record }; delete next[key]; return next }
-const same = (a: AgentModelConfig, b: AgentModelConfig) => a.provider === b.provider && a.model === b.model && a.creativity === b.creativity
+const same = (a: AgentModelConfig, b: AgentModelConfig) => a.provider === b.provider && a.model === b.model
 /** Shortest signed distance from the active slot, so the belt wraps around: -3..2 for six agents. */
 const offsetFrom = (index: number, active: number) => ((index - active + count + Math.floor(count / 2)) % count) - Math.floor(count / 2)
 
@@ -52,11 +47,16 @@ export default function AgentModels() {
 
   const save = async (id: AgentId, config: AgentModelConfig) => {
     setSaving(true)
-    const stored = await saveAgentModel(id, config)
-    setLoad((current) => current.status === 'ready' ? { status: 'ready', catalog: { ...current.catalog, agents: { ...current.catalog.agents, [id]: stored } } } : current)
-    setDrafts((current) => without(current, id))
-    setSaving(false)
-    setStatus(`Saved ${agentRoster.find((a) => a.id === id)?.name}’s model`)
+    try {
+      const stored = await saveAgentModel(id, config)
+      setLoad((current) => current.status === 'ready' ? { status: 'ready', catalog: { ...current.catalog, agents: stored.agents, defaults: stored.defaults, customized: stored.customized, configured: stored.configured } } : current)
+      setDrafts((current) => without(current, id))
+      setStatus(`Saved ${agentRoster.find((a) => a.id === id)?.name}’s model`)
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : 'Could not save the model. Try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -66,9 +66,15 @@ export default function AgentModels() {
         <main className="workspace">
           <Link className="back-link" to="/app"><span aria-hidden="true">←</span> Home</Link>
           <div className="workspace-heading">
-            <div><p className="eyebrow"><span /> Agents</p><h1>AI models</h1><p className="heading-note">Pick the model each investigator thinks with. A small local model keeps data on your servers; a hosted one reasons more deeply.</p></div>
+            <div><p className="eyebrow"><span /> Agents</p><h1>Agent configuration</h1><p className="heading-note">Pick the model each investigator thinks with. Investigations need your choice saved here before they can start.</p></div>
           </div>
-          <p className="billing-preview" role="note"><span aria-hidden="true">●</span> Preview: the models are live, but each agent’s choice is not stored yet and resets when you reload.</p>
+
+          {load.status === 'ready' && !load.catalog.configured && <div className="notice models-setup" role="status">
+            <div>
+              <p className="notice-title">Your agents aren’t configured yet</p>
+              <p>Investigations can’t start until you choose a model. Pick an agent below, choose its provider and model, and save. You can start with the suggested defaults.</p>
+            </div>
+          </div>}
 
           <div className={`models-layout${open ? ' is-open' : ''}`}>
             <section className="roster" aria-roledescription="carousel" aria-label="Agents" onKeyDown={onBeltKey}>
@@ -76,7 +82,7 @@ export default function AgentModels() {
                 {agentRoster.map((item, index) => {
                   const offset = offsetFrom(index, active)
                   const hidden = Math.abs(offset) > 2
-                  const custom = load.status === 'ready' && !same(drafts[item.id] ?? load.catalog.agents[item.id], load.catalog.defaults)
+                  const custom = load.status === 'ready' && load.catalog.customized.includes(item.id)
                   return (
                     <button key={item.id} type="button" className="roster-card" data-offset={offset} aria-hidden={hidden || undefined} tabIndex={offset === 0 ? 0 : -1}
                       aria-label={offset === 0 ? `Configure ${item.name}, ${item.specialty} agent` : `${item.name}, ${item.specialty} agent`} aria-current={offset === 0 || undefined}
@@ -138,11 +144,13 @@ function ModelCard({ agent, catalog, draft, saving, onChange, onDiscard, onSave,
   const model = provider.models.find((m) => m.id === config.model) ?? provider.models[0]
   const options = provider.models.map((m) => ({ id: m.id, label: m.label, hint: m.details.context_length ? `${tokens(m.details.context_length)} context` : undefined }))
   const dirty = !same(config, saved)
-  const isDefault = same(config, catalog.defaults)
+  const isDefault = same(config, catalog.defaults[agent.id])
+  // Until a choice is saved the agent only shows its default, so saving it once is allowed unchanged.
+  const unsaved = !catalog.customized.includes(agent.id)
 
   const pickProvider = (id: string) => {
     const next = catalog.providers.find((p) => p.id === id)
-    if (next?.connected) onChange({ ...config, provider: id, model: next.models[0].id })
+    if (next) onChange({ ...config, provider: id, model: next.models[0].id })
   }
 
   return (
@@ -154,7 +162,7 @@ function ModelCard({ agent, catalog, draft, saving, onChange, onDiscard, onSave,
           <span className="model-field-label">Provider</span>
           <button type="button" className="model-card-close" onClick={onClose} aria-label="Close model settings">×</button>
         </div>
-        <ModelSelect label={`Provider for ${agent.name}`} value={provider.id} options={catalog.providers.filter((p) => p.connected)} onChange={pickProvider} />
+        <ModelSelect label={`Provider for ${agent.name}`} value={provider.id} options={catalog.providers} onChange={pickProvider} />
       </div>
 
       <div className="model-field">
@@ -163,22 +171,11 @@ function ModelCard({ agent, catalog, draft, saving, onChange, onDiscard, onSave,
         <ModelDetailsPanel model={model.details} />
       </div>
 
-      <fieldset className="model-field">
-        <legend>Creativity</legend>
-        <div className="creativity-options">
-          {creativityLevels.map((level) => <label key={level.id} className="creativity-option">
-            <input type="radio" name={`creativity-${agent.id}`} value={level.id} checked={config.creativity === level.id} onChange={() => onChange({ ...config, creativity: level.id })} />
-            <span>{level.label}</span>
-          </label>)}
-        </div>
-        <p className="field-hint"><span>{creativityLevels.find((level) => level.id === config.creativity)?.hint}</span></p>
-      </fieldset>
-
       <div className="model-actions">
-        <button type="button" className="button-quiet" disabled={isDefault || saving} onClick={() => onChange({ ...catalog.defaults })}>Reset to default</button>
+        <button type="button" className="button-quiet" disabled={isDefault || saving} onClick={() => onChange({ ...catalog.defaults[agent.id] })}>Reset to default</button>
         <span className="model-actions-end">
           {dirty && <button type="button" className="button-quiet" disabled={saving} onClick={onDiscard}>Discard</button>}
-          <button type="button" className="button-primary" disabled={!dirty || saving} onClick={() => onSave(config)}>{saving ? 'Saving…' : 'Save'}</button>
+          <button type="button" className="button-primary" disabled={(!dirty && !unsaved) || saving} onClick={() => onSave(config)}>{saving ? 'Saving…' : 'Save'}</button>
         </span>
       </div>
     </aside>

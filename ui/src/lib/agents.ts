@@ -1,4 +1,4 @@
-import type { AgentId } from './modelsStub'
+import type { AgentId } from './agentModels'
 
 /** The six investigators, in the order the landing page introduces them. */
 export const agentRoster: { id: AgentId, name: string, specialty: string, image: string, color: string, job: string }[] = [

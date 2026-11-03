@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy.exc import SQLAlchemyError
 
 from tracehound.api.dependencies import (
+    AgentModelStoreDep,
     CurrentUserDep,
     IncidentHelperDep,
     IntegrationManagementDep,
@@ -32,6 +33,11 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/incidents", tags=["incidents"])
 
+AGENT_MODELS_NOT_CONFIGURED = (
+    "No models are configured for your agents. Choose a model on the Agent configuration page, "
+    "or with PUT /v1/agent-models/preferences/{agent}, before starting an investigation."
+)
+
 
 @router.post("", status_code=status.HTTP_202_ACCEPTED)
 def create_incident(
@@ -39,6 +45,7 @@ def create_incident(
     user: CurrentUserDep,
     helper: IncidentHelperDep,
     integrations: IntegrationManagementDep,
+    agent_models: AgentModelStoreDep,
     runner: InvestigationRunnerDep,
 ) -> IncidentAccepted:
     try:
@@ -53,6 +60,20 @@ def create_incident(
         raise HTTPException(
             status_code=status.HTTP_412_PRECONDITION_FAILED,
             detail=f"Integration is not configured for: {', '.join(missing)}.",
+        )
+    try:
+        models_configured = agent_models.has_configuration(user.user_id)
+    except SQLAlchemyError as exc:
+        logger.exception("Failed to check model settings for user %s", user.user_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not check the model settings.",
+        ) from exc
+    if not models_configured:
+        # 428, not the 412 used for missing integrations, so clients can tell the two apart.
+        raise HTTPException(
+            status_code=status.HTTP_428_PRECONDITION_REQUIRED,
+            detail=AGENT_MODELS_NOT_CONFIGURED,
         )
     try:
         accepted = helper.create(user.user_id, payload)

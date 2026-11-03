@@ -1,5 +1,10 @@
 """Typed, framework-agnostic contracts: incidents, evidence, hypotheses, workflow states."""
 
+from tracehound.schemas.agent_preferences import (
+    AgentId,
+    AgentModelChoice,
+    AgentModelPreferences,
+)
 from tracehound.schemas.api_key import (
     ApiKeyCreated,
     ApiKeyCreateRequest,
@@ -61,6 +66,9 @@ from tracehound.schemas.triage import (
 )
 
 __all__ = [
+    "AgentId",
+    "AgentModelChoice",
+    "AgentModelPreferences",
     "AgentName",
     "AgentRun",
     "ApiKeyCreateRequest",

@@ -7,6 +7,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from tracehound.auth import InvalidToken, TokenVerifier, User
 from tracehound.db import SessionFactory
+from tracehound.helpers.agent_model_helper import AgentModelStore
 from tracehound.helpers.api_key_helper import ApiKeyManagement
 from tracehound.helpers.catalog_helper import CatalogStore
 from tracehound.helpers.incident_helper import IncidentHelper
@@ -57,6 +58,11 @@ def get_plan_catalog(sessions: SessionsDep) -> PlanCatalog:
     return PlanCatalog(sessions)
 
 
+def get_agent_model_store(sessions: SessionsDep) -> AgentModelStore:
+    """Build the per-agent model store for this request on the injected sessions."""
+    return AgentModelStore(sessions)
+
+
 def get_token_verifier(request: Request) -> TokenVerifier:
     verifier: TokenVerifier = request.app.state.token_verifier
     return verifier
@@ -87,3 +93,4 @@ InvestigationStoreDep = Annotated[InvestigationStore, Depends(get_investigation_
 PlanCatalogDep = Annotated[PlanCatalog, Depends(get_plan_catalog)]
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
 CatalogStoreDep = Annotated[CatalogStore, Depends(get_catalog_store)]
+AgentModelStoreDep = Annotated[AgentModelStore, Depends(get_agent_model_store)]

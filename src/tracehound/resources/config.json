@@ -80,6 +80,26 @@
     "provider": "nvidia",
     "model": "nvidia/nemotron-3.5-lightning:free"
   },
+  "agent_defaults": {
+    "triage": {
+      "model": "nvidia/nemotron-3-ultra-550b-a55b:free"
+    },
+    "logs": {
+      "model": "nvidia/nemotron-3.5-lightning:free"
+    },
+    "metrics": {
+      "model": "nvidia/nemotron-3.5-lightning:free"
+    },
+    "dependency": {
+      "model": "google/gemma-4-26b-a4b-it:free"
+    },
+    "deploy": {
+      "model": "cohere/north-mini-code:free"
+    },
+    "hypothesis": {
+      "model": "thinkingmachines/inkling:free"
+    }
+  },
   "descriptions": {
     "nvidia/nemotron-3-ultra-550b-a55b:free": "NVIDIA Nemotron 3 Ultra is an open frontier-reasoning and orchestration model from NVIDIA. It is a mixture-of-experts model with 550B total parameters, of which 55B are active, built on a hybrid Transformer-Mamba mixture-of-experts architecture.",
     "nvidia/nemotron-3.5-super-vl:free": "NVIDIA Nemotron 3.5 Super VL is an open multimodal mixture-of-experts model from NVIDIA, with 12B active parameters out of 120B total. It takes text, images, documents, GUI screenshots and video as input.",

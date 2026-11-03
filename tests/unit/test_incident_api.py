@@ -8,6 +8,7 @@ from sqlalchemy.exc import OperationalError
 
 from tracehound.api.app import create_app
 from tracehound.api.dependencies import (
+    get_agent_model_store,
     get_current_user,
     get_incident_helper,
     get_integration_management,
@@ -121,6 +122,16 @@ class MemoryIntegrations:
         return self.missing
 
 
+class MemoryAgentModels:
+    """Stand-in for `AgentModelStore`; `configured` says whether the user has saved a choice."""
+
+    def __init__(self, configured: bool = True) -> None:
+        self.configured = configured
+
+    def has_configuration(self, user_id: UUID) -> bool:
+        return self.configured
+
+
 class RecordingRunner:
     """Stand-in for `InvestigationRunner` that only remembers what was submitted."""
 
@@ -141,6 +152,7 @@ def _app_with(
     user_id: UUID | None = USER_ID,
     integrations: object | None = None,
     runner: object | None = None,
+    agent_models: object | None = None,
 ) -> FastAPI:
     # The lifespan never runs because TestClient is not used as a context manager,
     # so no database pool is opened. `user_id=None` signs nobody in: every token is rejected.
@@ -149,6 +161,7 @@ def _app_with(
     app.dependency_overrides[get_integration_management] = lambda: (
         integrations or MemoryIntegrations()
     )
+    app.dependency_overrides[get_agent_model_store] = lambda: agent_models or MemoryAgentModels()
     app.dependency_overrides[get_investigation_runner] = lambda: runner or RecordingRunner()
     if user_id is None:
         app.dependency_overrides[get_token_verifier] = RejectingVerifier
@@ -360,3 +373,21 @@ def test_stats_rejects_invalid_range(
 ) -> None:
     assert client.get("/v1/incidents/stats", params=params).status_code == 422
     assert helper.stats_calls == []
+
+
+def test_unconfigured_models_return_428_and_store_nothing(helper: MemoryHelper) -> None:
+    runner = RecordingRunner()
+    app = _app_with(helper, runner=runner, agent_models=MemoryAgentModels(configured=False))
+    response = TestClient(app).post("/v1/incidents", json=VALID)
+    assert response.status_code == 428
+    assert "No models are configured for your agents" in response.json()["detail"]
+    assert helper.records == [] and runner.submitted == []
+
+
+def test_missing_integrations_are_reported_before_missing_models(helper: MemoryHelper) -> None:
+    app = _app_with(
+        helper,
+        integrations=MemoryIntegrations(missing=["logs"]),
+        agent_models=MemoryAgentModels(configured=False),
+    )
+    assert TestClient(app).post("/v1/incidents", json=VALID).status_code == 412
