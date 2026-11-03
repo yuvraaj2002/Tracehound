@@ -9,3 +9,10 @@ def test_default_is_an_allowed_model() -> None:
 def test_models_are_prefixed_with_their_provider() -> None:
     for provider in load_model_config()["providers"]:
         assert all(model.startswith(f"{provider['id']}/") for model in provider["models"])
+
+
+def test_descriptions_are_for_allowed_models_and_complete_sentences() -> None:
+    config = load_model_config()
+    for model_id, text in config["descriptions"].items():
+        assert model_id in allowed_models()
+        assert text.endswith(".") and not text.endswith("...")

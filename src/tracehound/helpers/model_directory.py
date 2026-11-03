@@ -66,10 +66,15 @@ class ModelDirectory:
             "provider": provider["id"],
             "provider_label": provider["label"],
         }
+        # Our own wording wins: OpenRouter cuts its descriptions off mid-sentence.
+        written = load_model_config().get("descriptions", {}).get(model_id)
         raw = self._listing().get(model_id)
         if raw is None:
             return ModelDetails(
-                **base, name=model_id.split("/", 1)[1].removesuffix(":free"), listed=False
+                **base,
+                name=model_id.split("/", 1)[1].removesuffix(":free"),
+                listed=False,
+                description=written,
             )
         params = raw.get("supported_parameters") or []
         architecture = raw.get("architecture") or {}
@@ -78,7 +83,7 @@ class ModelDirectory:
             **base,
             name=_display_name(raw.get("name") or model_id),
             listed=True,
-            description=raw.get("description"),
+            description=written or raw.get("description"),
             context_length=raw.get("context_length"),
             max_output_tokens=top.get("max_completion_tokens"),
             input_modalities=architecture.get("input_modalities") or [],

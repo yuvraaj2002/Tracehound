@@ -5,7 +5,7 @@ const date = (iso: string) => new Date(iso).toLocaleDateString(undefined, { year
 
 /** What someone choosing a model needs: what it is, how much it can take in, and how much it can answer. */
 export default function ModelDetailsPanel({ model }: { model: ModelDetails }) {
-  if (!model.listed) return <p className="mdp mdp-note">No further details are published for this model yet.</p>
+  if (!model.listed && !model.description) return <p className="mdp mdp-note">No further details are published for this model yet.</p>
 
   return (
     <article className="mdp" aria-label={`${model.name} details`}>
@@ -22,7 +22,7 @@ export default function ModelDetailsPanel({ model }: { model: ModelDetails }) {
         {model.max_output_tokens && <div><strong>{tokens(model.max_output_tokens)}</strong><span>Max output</span></div>}
       </div>}
 
-      {!model.supports_tools && <p className="mdp-warning" role="note">This model can’t call tools, which investigation agents may rely on.</p>}
+      {model.listed && !model.supports_tools && <p className="mdp-warning" role="note">This model can’t call tools, which investigation agents may rely on.</p>}
       {model.released_at && <p className="mdp-meta">Released {date(model.released_at)}</p>}
     </article>
   )

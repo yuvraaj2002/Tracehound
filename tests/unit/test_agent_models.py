@@ -63,6 +63,9 @@ def test_model_details_have_no_pricing() -> None:
     body = response.json()
     assert body["name"] == "Gemma 4 26B A4B"
     assert body["context_length"] == 262144
+    assert body["description"].endswith("near-31B quality."), (
+        "our own wording replaces the cut-off text"
+    )
     assert body["max_output_tokens"] == 32768
     assert body["input_modalities"] == ["text", "image"]
     assert (body["supports_tools"], body["supports_reasoning"]) == (True, True)
