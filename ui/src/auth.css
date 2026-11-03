@@ -171,6 +171,9 @@
 .source-head { display: flex; align-items: center; gap: 20px; }
 .source-identity { flex: 1; min-width: 0; }
 .agent-face { position: relative; display: block; flex-shrink: 0; width: 72px; height: 72px; border-radius: 50%; background: var(--color-white); box-shadow: 0 0 0 1px var(--color-line), 0 0 0 4px var(--color-white), 0 0 0 5px color-mix(in srgb, var(--source-color) 40%, var(--color-white)); overflow: hidden; transition: box-shadow .2s; }
+.agent-face.service-logo { background: #fff; }
+.agent-face.service-logo img { object-fit: contain; padding: 15px; filter: none; }
+.connect-header .agent-face.service-logo img { padding: 10px; }
 .agent-face img { display: block; width: 100%; height: 100%; object-fit: cover; filter: saturate(var(--portrait-saturation, .78)) brightness(1.04); transition: transform .3s ease-out, filter .3s; }
 .source:not(.is-planned):hover .agent-face img { transform: scale(1.06); }
 .source:not(.is-planned):hover .agent-face { box-shadow: 0 0 0 1px var(--color-line), 0 0 0 4px var(--color-white), 0 0 0 5px var(--source-color); }

@@ -10,12 +10,12 @@ const formatDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, 
 const message = (err: unknown, fallback: string) => err instanceof Error ? err.message : fallback
 
 /** One slot per specialist data source, each of which can be connected, edited or disconnected. */
-type Source = { signal: string, agent: string, name: string, face: string, product: string, description: string, color: string, kind: IntegrationKind }
+type Source = { signal: string, agent: string, name: string, logo: string, product: string, description: string, color: string, kind: IntegrationKind }
 const sources: Source[] = [
-  { signal: 'Logs', name: 'Echo', face: '/agents/faces/logs.jpg', agent: 'Logs agent', product: 'Grafana Loki', description: 'Reads error bursts, stack traces and new messages from your services during the incident window.', color: 'var(--agent-logs)', kind: 'loki' },
-  { signal: 'Metrics', name: 'Pulse', face: '/agents/faces/metrics.jpg', agent: 'Metrics agent', product: 'Prometheus', description: 'Compares latency, error rate and saturation against the baseline before the incident.', color: 'var(--agent-metrics)', kind: 'prometheus' },
-  { signal: 'Traces', name: 'Tether', face: '/agents/faces/dependency.jpg', agent: 'Dependency agent', product: 'Grafana Tempo', description: 'Follows slow and failing spans across service boundaries to find where trouble starts.', color: 'var(--agent-dependency)', kind: 'tempo' },
-  { signal: 'Deploys', name: 'Ledger', face: '/agents/faces/deploy.jpg', agent: 'Deploy agent', product: 'GitHub', description: 'Lines up releases and configuration changes with the moment the incident began.', color: 'var(--agent-deploy)', kind: 'github' },
+  { signal: 'Logs', name: 'Echo', logo: '/integrations/loki.svg', agent: 'Logs agent', product: 'Grafana Loki', description: 'Reads error bursts, stack traces and new messages from your services during the incident window.', color: 'var(--agent-logs)', kind: 'loki' },
+  { signal: 'Metrics', name: 'Pulse', logo: '/integrations/prometheus.svg', agent: 'Metrics agent', product: 'Prometheus', description: 'Compares latency, error rate and saturation against the baseline before the incident.', color: 'var(--agent-metrics)', kind: 'prometheus' },
+  { signal: 'Traces', name: 'Tether', logo: '/integrations/tempo.svg', agent: 'Dependency agent', product: 'Grafana Tempo', description: 'Follows slow and failing spans across service boundaries to find where trouble starts.', color: 'var(--agent-dependency)', kind: 'tempo' },
+  { signal: 'Deploys', name: 'Ledger', logo: '/integrations/github.svg', agent: 'Deploy agent', product: 'GitHub', description: 'Lines up releases and configuration changes with the moment the incident began.', color: 'var(--agent-deploy)', kind: 'github' },
 ]
 
 const statusLabel: Record<IntegrationStatus, string> = { untested: 'Not tested yet', active: 'Connected', failing: 'Failing' }
@@ -126,9 +126,9 @@ export default function Integrations() {
   )
 }
 
-/** The agent who reads this source. Decorative: the eyebrow already names the agent. */
-function AgentFace({ source }: { source: Source }) {
-  return <span className="agent-face" aria-hidden="true"><img src={source.face} alt="" width="96" height="96" loading="lazy" decoding="async" /></span>
+/** The product's own logo. Decorative: the heading already names the product. */
+function ServiceLogo({ source }: { source: Source }) {
+  return <span className="agent-face service-logo" aria-hidden="true"><img src={source.logo} alt="" width="96" height="96" loading="lazy" decoding="async" /></span>
 }
 
 function SourceRow({ source, integration, previewing, loading, unavailable, isNew, onConnect, onEdit, onDisconnect }: { source: Source, integration?: IntegrationSummary, previewing: boolean, loading: boolean, unavailable: boolean, isNew: boolean, onConnect: () => void, onEdit: (integration: IntegrationSummary) => void, onDisconnect: (integration: IntegrationSummary) => void }) {
@@ -146,7 +146,7 @@ function SourceRow({ source, integration, previewing, loading, unavailable, isNe
   return (
     <li className={['source', isNew ? 'is-new' : null].filter(Boolean).join(' ')} style={{ '--source-color': source.color } as CSSProperties} aria-labelledby={titleId}>
       <div className="source-head">
-        <AgentFace source={source} />
+        <ServiceLogo source={source} />
         <div className="source-identity">
           <p className="eyebrow"><span /> {source.signal} · {source.name}, {source.agent}</p>
           <h3 id={titleId}>{source.product}</h3>
@@ -286,7 +286,7 @@ function ConnectDialog({ source, integration, fallbackFocus, onSaved, onClose }:
       <form className="dialog-form connect-form" onSubmit={submit} noValidate style={{ '--source-color': source.color } as CSSProperties}>
         <div className="connect-header">
           <div className="connect-title">
-            <AgentFace source={source} />
+            <ServiceLogo source={source} />
             <div>
               <p className="eyebrow"><span /> {source.signal} · {source.name}, {source.agent}</p>
               <h2 id="connect-dialog-title">{editing ? 'Edit' : 'Connect'} {source.product}</h2>
