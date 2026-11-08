@@ -76,3 +76,17 @@ def test_no_services_makes_no_request() -> None:
     requests: list[httpx.Request] = []
     assert _source([], requests).fetch(set(), START, END) == []
     assert requests == []
+
+
+def test_duplicate_messages_collapse_with_occurrence() -> None:
+    entries = [
+        _entry(10, "error: pool exhausted"),
+        _entry(20, "error: pool exhausted"),
+        _entry(30, "error: other"),
+    ]
+    lines = _source(entries, []).fetch({"orders"}, START, END)
+
+    assert [(line.message, line.occurrence) for line in lines] == [
+        ("error: pool exhausted", 2),
+        ("error: other", 1),
+    ]

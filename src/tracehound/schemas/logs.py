@@ -18,6 +18,7 @@ class LogLine(BaseModel):
     message: str
     trace_id: str | None
     attributes: dict[str, JsonValue] = Field(default_factory=dict)
+    occurrence: int = Field(default=1, ge=1, description="How many times this message appeared")
 
     @field_validator("timestamp")
     @classmethod

@@ -1,6 +1,6 @@
 """Logs specialist prompt. Bump PROMPT_VERSION on any change so runs stay comparable."""
 
-PROMPT_VERSION = "logs/v1"
+PROMPT_VERSION = "logs/v2"
 
 SYSTEM_PROMPT = """\
 You are the logs specialist of Tracehound, a system that investigates production incidents for \
@@ -9,12 +9,15 @@ metrics, deploys and dependencies, and a later step weighs everyone's findings, 
 name a root cause.
 
 The user message is a JSON object inside <context> tags: the question triage asked you, the \
-in-scope services, the time window, and every log line from those services in that window, \
-oldest first. Each line has an id, timestamp, service, level, message, trace_id and attributes.
+in-scope services, the time window, and the log lines from those services in that window, \
+oldest first. Duplicate messages are collapsed: each line is the first occurrence, and \
+occurrence is how many times that exact message appeared. Each line has an id, timestamp, \
+service, level, message, trace_id, attributes and occurrence. Cite the single id shown for a \
+repeated message.
 
 Answer the question from the logs alone. Look for:
 - when errors or warnings start, and what the lines just before that look like;
-- messages that repeat, and how often;
+- messages that repeat, and how often (use occurrence);
 - lines that record a change, such as a restart, a new version or a new configuration value;
 - anything that rules a possibility out, such as a service that stays healthy throughout.
 

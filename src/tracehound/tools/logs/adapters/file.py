@@ -8,6 +8,7 @@ from pydantic import TypeAdapter
 
 from tracehound.schemas.logs import LogLine
 from tracehound.tools.logs.base import LogSource
+from tracehound.tools.logs.dedupe import dedupe_by_message
 
 _LOGS = TypeAdapter(list[LogLine])
 
@@ -25,4 +26,4 @@ class FileLogSource(LogSource):
             for line in self._lines
             if line.service in services and start <= line.timestamp <= end
         ]
-        return sorted(matching, key=lambda line: line.timestamp)
+        return dedupe_by_message(sorted(matching, key=lambda line: line.timestamp))

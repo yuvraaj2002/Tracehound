@@ -9,6 +9,7 @@ import httpx
 
 from tracehound.schemas.logs import LogLine
 from tracehound.tools.logs.base import LogSource
+from tracehound.tools.logs.dedupe import dedupe_by_message
 
 _LEVELS = {
     "trace": "DEBUG",
@@ -56,7 +57,7 @@ class LokiLogSource(LogSource):
         query = f"{{{self._service_label}=~`{names}`}} |~ `{_WARN_ERROR_PATTERN}`"
         # Loki's end is exclusive; nudge past ``end`` so our window stays inclusive.
         lines = self._query(query, start, end + timedelta(microseconds=1))
-        return sorted(lines, key=lambda line: line.timestamp)
+        return dedupe_by_message(sorted(lines, key=lambda line: line.timestamp))
 
     def _query(self, query: str, start: datetime, end: datetime) -> list[LogLine]:
         """Run one Loki ``query_range`` over ``[start, end)`` and map each hit to a ``LogLine``.
