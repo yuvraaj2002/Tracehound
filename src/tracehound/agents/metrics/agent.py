@@ -9,7 +9,7 @@ from tracehound.agents.inference import StructuredLLM
 from tracehound.agents.metrics.prompt import SYSTEM_PROMPT
 from tracehound.schemas.evidence import Evidence, EvidenceSource, hash_payload
 from tracehound.schemas.finding import Finding, SpecialistReport
-from tracehound.schemas.telemetry import MetricSeries
+from tracehound.schemas.metrics import MetricSeries
 from tracehound.schemas.triage import InvestigationScope, Specialist
 from tracehound.tools.metrics import MetricSource
 

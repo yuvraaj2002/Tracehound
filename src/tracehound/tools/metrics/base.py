@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
 
-from tracehound.schemas.telemetry import MetricSeries
+from tracehound.schemas.metrics import MetricSeries
 
 
 class MetricSource(ABC):

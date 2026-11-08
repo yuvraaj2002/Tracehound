@@ -68,7 +68,7 @@ overrides the local Ollama model. Ollama must be running, or the run ends FAILED
 
 ### Integrations
 
-Users connect their own telemetry backends (Loki first) with `POST /v1/integrations`. The
+Users connect their own telemetry backends (Loki, Prometheus, Tempo, GitHub) with `POST /v1/integrations`. The
 credential is encrypted with AES-256-GCM before it reaches the database, using a 32-byte key in
 `.env`:
 

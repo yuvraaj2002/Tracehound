@@ -6,7 +6,7 @@ from pathlib import Path
 
 from pydantic import TypeAdapter
 
-from tracehound.schemas.telemetry import MetricSeries
+from tracehound.schemas.metrics import MetricSeries
 from tracehound.tools.metrics.base import MetricSource
 
 _SERIES = TypeAdapter(list[MetricSeries])

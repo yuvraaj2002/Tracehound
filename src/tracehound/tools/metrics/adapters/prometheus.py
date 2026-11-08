@@ -10,7 +10,7 @@ from typing import Any
 
 import httpx
 
-from tracehound.schemas.telemetry import MetricPoint, MetricSeries
+from tracehound.schemas.metrics import MetricPoint, MetricSeries
 from tracehound.tools.metrics.base import MetricSource
 
 

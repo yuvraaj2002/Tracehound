@@ -19,7 +19,7 @@ from tracehound.schemas.catalog import (
     CatalogSummary,
     ServiceCatalog,
 )
-from tracehound.schemas.telemetry import Edge
+from tracehound.schemas.topology import Edge
 
 MAX_CATALOG_BYTES = 1_048_576  # matches the column check
 MAX_ENTITIES = 500

@@ -8,7 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from tracehound.agents.inference import StructuredLLM
 from tracehound.agents.triage.prompt import SYSTEM_PROMPT
 from tracehound.schemas.incident import IncidentRecord
-from tracehound.schemas.telemetry import Deploy, Edge, ServiceNode, Topology
+from tracehound.schemas.deploys import Deploy
+from tracehound.schemas.topology import Edge, ServiceNode, Topology
 from tracehound.schemas.triage import InvestigationScope, Specialist, SpecialistTask
 from tracehound.tools.deploys import DeploySource, FileDeploySource
 from tracehound.tools.triage import load_topology

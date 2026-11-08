@@ -10,7 +10,7 @@ it.
 | Part | Status |
 |---|---|
 | Live adapters: `LokiLogSource`, `PrometheusMetricSource`, `TempoTraceSource`, `GitHubDeploySource` (`src/tracehound/tools/*/adapters/`) | Written |
-| Connecting an integration through `POST /v1/integrations` | Loki only. `IntegrationKind` lists all four, but `IntegrationCreateRequest.kind` is `Literal["loki"]` (`src/tracehound/schemas/integration.py`) |
+| Connecting an integration through `POST /v1/integrations` | All four kinds: `loki`, `prometheus`, `tempo`, `github` (`src/tracehound/schemas/integration.py`) |
 | Testing a connection (status `untested` → `active` / `failing`) | No endpoint yet |
 | Investigations reading from a user's integrations | Not wired. The worker (`src/tracehound/worker/runner.py`) uses only scenario files. Users not in `FIXTURE_USER_IDS` end FAILED |
 

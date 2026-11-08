@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from tracehound.schemas.telemetry import LogLine
+from tracehound.schemas.logs import LogLine
 from tracehound.tools.logs.base import LogSource
 
 

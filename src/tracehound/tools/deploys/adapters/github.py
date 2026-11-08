@@ -6,7 +6,7 @@ from typing import Any
 
 import httpx
 
-from tracehound.schemas.telemetry import Deploy
+from tracehound.schemas.deploys import Deploy
 from tracehound.tools.deploys.base import DeploySource
 
 _PER_PAGE = 100

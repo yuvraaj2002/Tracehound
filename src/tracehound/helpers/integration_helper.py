@@ -23,6 +23,7 @@ from tracehound.schemas import (
     IntegrationUpdateRequest,
 )
 from tracehound.schemas.integration import (
+    CONFIG_FIELDS,
     BasicAuth,
     BearerAuth,
     IntegrationAuth,
@@ -55,6 +56,10 @@ REQUIRED_SIGNALS: dict[str, IntegrationKind] = {
 
 class IntegrationExists(Exception):
     """The user already has an integration of this kind."""
+
+
+class UnsupportedConfigField(Exception):
+    """An update set a config field that this integration's kind doesn't use."""
 
 
 class SecretBox:
@@ -105,15 +110,19 @@ class IntegrationManagement:
 
     @classmethod
     def merge_update(
-        cls, config: dict[str, Any], request: IntegrationUpdateRequest
+        cls, kind: IntegrationKind, config: dict[str, Any], request: IntegrationUpdateRequest
     ) -> tuple[dict[str, Any], bool, str | None]:
-        """Apply `request` to a stored config.
+        """Apply `request` to a stored config of `kind`.
 
         Returns the new config, whether the stored secret is replaced, and the new secret.
+        Raises `UnsupportedConfigField` if `request` sets a field that `kind` doesn't use.
         """
         merged = dict(config)
         if request.config is not None:
-            merged.update(request.config.model_dump(exclude_unset=True))
+            changes = request.config.model_dump(exclude_unset=True)
+            if unsupported := changes.keys() - CONFIG_FIELDS[kind]:
+                raise UnsupportedConfigField(", ".join(sorted(unsupported)))
+            merged.update(changes)
         if request.auth is None:
             return merged, False, None
         merged.pop("username", None)
@@ -191,7 +200,8 @@ class IntegrationManagement:
         """Change an integration's settings and, if `auth` is sent, its credential.
 
         The previous test result no longer applies, so the status goes back to untested.
-        Returns None when the integration isn't the user's.
+        Returns None when the integration isn't the user's. Raises `UnsupportedConfigField` if
+        `request` sets a field the integration's kind doesn't use.
         """
         stmt = (
             select(Integration)
@@ -202,7 +212,11 @@ class IntegrationManagement:
             row = session.scalars(stmt).first()
             if row is None:
                 return None
-            config, replace_secret, secret = self.merge_update(row.config, request)
+            config, replace_secret, secret = self.merge_update(
+                row.kind,  # type: ignore[arg-type]
+                row.config,
+                request,
+            )
             row.config = config
             if replace_secret:
                 row.secret_ciphertext, row.secret_key_version = self._seal(integration_id, secret)

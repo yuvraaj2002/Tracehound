@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
 
-from tracehound.schemas.telemetry import LogLine
+from tracehound.schemas.logs import LogLine
 
 
 class LogSource(ABC):

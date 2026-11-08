@@ -6,7 +6,8 @@ from pathlib import Path
 
 from pydantic import TypeAdapter
 
-from tracehound.schemas.telemetry import Deploy, Topology
+from tracehound.schemas.deploys import Deploy
+from tracehound.schemas.topology import Topology
 
 _DEPLOYS = TypeAdapter(list[Deploy])
 

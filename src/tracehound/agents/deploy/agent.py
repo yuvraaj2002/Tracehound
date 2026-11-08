@@ -9,7 +9,7 @@ from tracehound.agents.deploy.prompt import SYSTEM_PROMPT
 from tracehound.agents.inference import StructuredLLM
 from tracehound.schemas.evidence import Evidence, EvidenceSource, hash_payload
 from tracehound.schemas.finding import Finding, SpecialistReport
-from tracehound.schemas.telemetry import Deploy
+from tracehound.schemas.deploys import Deploy
 from tracehound.schemas.triage import InvestigationScope, Specialist
 from tracehound.tools.deploys import DeploySource
 

@@ -23,6 +23,7 @@ from tracehound.schemas import (
     IntegrationSummary,
     IntegrationUpdateRequest,
 )
+from tracehound.schemas.integration import LokiCreateRequest
 
 GRAFANA_CLOUD = {
     "kind": "loki",
@@ -63,7 +64,7 @@ class MemoryIntegrations:
         for i, (uid, summary) in enumerate(self.summaries):
             if uid == user_id and summary.id == integration_id:
                 config, replaced, secret = IntegrationManagement.merge_update(
-                    summary.config, request
+                    summary.kind, summary.config, request
                 )
                 has_secret = (secret is not None) if replaced else summary.has_secret
                 updated = summary.model_copy(
@@ -119,6 +120,89 @@ def client(integrations: MemoryIntegrations) -> TestClient:
 
 def _with(**changes: object) -> dict:
     return {**GRAFANA_CLOUD, **changes}
+
+
+# Every source
+
+
+GITHUB = {
+    "kind": "github",
+    "config": {"url": "https://api.github.com", "repository": "acme/checkout"},
+    "auth": {"type": "bearer", "token": "ghp_secret"},
+}
+
+
+def _post(client: TestClient, payload: dict) -> dict:
+    response = client.post("/v1/integrations", json=payload, headers=_auth())
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+@pytest.mark.parametrize("kind", ["prometheus", "tempo"])
+def test_creates_telemetry_backends(client: TestClient, kind: str) -> None:
+    body = _post(client, _with(kind=kind, config={"url": f"https://{kind}.acme.com/"}))
+    assert body["kind"] == kind
+    assert body["config"]["url"] == f"https://{kind}.acme.com"
+    assert body["has_secret"] is True
+
+
+def test_service_label_defaults_per_kind(client: TestClient) -> None:
+    config = {"url": "https://backend.acme.com"}
+    assert _post(client, _with(config=config))["config"]["service_label"] == "service_name"
+    prometheus = _post(client, _with(kind="prometheus", config=config))
+    assert prometheus["config"]["service_label"] == "job"
+    assert _post(client, _with(kind="tempo", config=config))["config"]["service_label"] == (
+        "service_name"
+    )
+
+
+def test_creates_github_with_repository(client: TestClient) -> None:
+    body = _post(client, GITHUB)
+    assert body["config"]["repository"] == "acme/checkout"
+    assert body["config"]["auth_type"] == "bearer"
+    assert "service_label" not in body["config"]
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {"url": "https://api.github.com"},
+        {"url": "https://api.github.com", "repository": "not-a-repo"},
+        {"url": "http://api.github.com", "repository": "acme/checkout"},
+        {"url": "https://api.github.com", "repository": "acme/checkout", "service_label": "job"},
+    ],
+)
+def test_rejects_invalid_github_config(
+    client: TestClient, config: dict, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("ALLOW_INSECURE_INTEGRATION_URLS", raising=False)
+    payload = {**GITHUB, "config": config}
+    assert client.post("/v1/integrations", json=payload, headers=_auth()).status_code == 422
+
+
+def test_updates_github_repository(client: TestClient) -> None:
+    created = _post(client, GITHUB)
+    response = client.patch(
+        f"/v1/integrations/{created['id']}",
+        json={"config": {"repository": "acme/payments"}},
+        headers=_auth(),
+    )
+    assert response.status_code == 200
+    assert response.json()["config"]["repository"] == "acme/payments"
+
+
+@pytest.mark.parametrize(
+    ("payload", "changes"),
+    [(GITHUB, {"service_label": "job"}), (GRAFANA_CLOUD, {"repository": "acme/checkout"})],
+)
+def test_update_rejects_field_of_another_kind(
+    client: TestClient, payload: dict, changes: dict
+) -> None:
+    created = _post(client, payload)
+    response = client.patch(
+        f"/v1/integrations/{created['id']}", json={"config": changes}, headers=_auth()
+    )
+    assert response.status_code == 422
 
 
 # Encryption
@@ -234,7 +318,7 @@ def test_insecure_urls_allowed_in_local_dev(
 @pytest.mark.parametrize(
     "changes",
     [
-        {"kind": "prometheus"},
+        {"kind": "datadog"},
         {"auth": {"type": "basic", "username": "123456"}},
         {"auth": {"type": "none", "token": "leftover"}},
         {"auth": {"type": "oauth"}},
@@ -267,7 +351,7 @@ def test_database_error_returns_500() -> None:
 
 def test_lists_only_own_integrations(client: TestClient, integrations: MemoryIntegrations) -> None:
     assert client.get("/v1/integrations", headers=_auth()).json() == {"items": []}
-    integrations.create(uuid4(), IntegrationCreateRequest.model_validate(GRAFANA_CLOUD))
+    integrations.create(uuid4(), LokiCreateRequest.model_validate(GRAFANA_CLOUD))
     created = client.post("/v1/integrations", json=GRAFANA_CLOUD, headers=_auth()).json()
     response = client.get("/v1/integrations", headers=_auth())
     assert response.status_code == 200
@@ -371,7 +455,7 @@ def test_cannot_update_other_users_integration(
     client: TestClient, integrations: MemoryIntegrations
 ) -> None:
     other = uuid4()
-    theirs = integrations.create(other, IntegrationCreateRequest.model_validate(GRAFANA_CLOUD))
+    theirs = integrations.create(other, LokiCreateRequest.model_validate(GRAFANA_CLOUD))
     response = client.patch(
         f"/v1/integrations/{theirs.id}", json={"config": {"org_id": "x"}}, headers=_auth()
     )
@@ -411,7 +495,7 @@ def test_cannot_delete_other_users_integration(
     client: TestClient, integrations: MemoryIntegrations
 ) -> None:
     other = uuid4()
-    theirs = integrations.create(other, IntegrationCreateRequest.model_validate(GRAFANA_CLOUD))
+    theirs = integrations.create(other, LokiCreateRequest.model_validate(GRAFANA_CLOUD))
     response = client.delete(f"/v1/integrations/{theirs.id}", headers=_auth())
     assert response.status_code == 404
     assert integrations.list(other).items == [theirs]

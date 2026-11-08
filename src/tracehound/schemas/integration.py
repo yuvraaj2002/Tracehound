@@ -1,4 +1,4 @@
-"""Integration contracts: a user's connection to a telemetry backend (Loki first)."""
+"""Integration contracts: a user's connection to a telemetry backend."""
 
 import ipaddress
 import os
@@ -16,7 +16,7 @@ from pydantic import (
     model_validator,
 )
 
-# Stored kinds, one per specialist. Only Loki can be created through the API so far.
+# Stored kinds, one per specialist.
 IntegrationKind = Literal["loki", "prometheus", "tempo", "github"]
 IntegrationStatus = Literal["untested", "active", "failing"]
 
@@ -77,12 +77,16 @@ class BearerAuth(_Strict):
 IntegrationAuth = Annotated[NoAuth | BasicAuth | BearerAuth, Field(discriminator="type")]
 
 
-class LokiConfig(_Strict):
-    """Non-secret Loki settings. `org_id` is sent as `X-Scope-OrgID` for multi-tenant Loki."""
+SERVICE_LABEL_PATTERN = r"^[a-zA-Z_][a-zA-Z0-9_]*$"
+REPOSITORY_PATTERN = r"^[\w.-]+/[\w.-]+$"
+
+
+class TelemetryConfig(_Strict):
+    """Non-secret backend settings. `org_id` is sent as `X-Scope-OrgID` when multi-tenant."""
 
     url: str = Field(max_length=2048)
     service_label: str = Field(
-        default="service_name", min_length=1, max_length=100, pattern=r"^[a-zA-Z_][a-zA-Z0-9_]*$"
+        default="service_name", min_length=1, max_length=100, pattern=SERVICE_LABEL_PATTERN
     )
     org_id: str | None = Field(default=None, min_length=1, max_length=200)
 
@@ -92,22 +96,77 @@ class LokiConfig(_Strict):
         return check_backend_url(url)
 
 
-class IntegrationCreateRequest(_Strict):
-    """Payload for ``POST /v1/integrations``. The credential in `auth` is stored encrypted."""
+class PrometheusConfig(TelemetryConfig):
+    """Prometheus settings. Scrape targets name their service with `job`, not `service_name`."""
 
-    kind: Literal["loki"]
-    config: LokiConfig
+    service_label: str = Field(
+        default="job", min_length=1, max_length=100, pattern=SERVICE_LABEL_PATTERN
+    )
+
+
+class GitHubConfig(_Strict):
+    """GitHub settings: the API base URL and the `owner/name` repository to read deploys from."""
+
+    url: str = Field(default="https://api.github.com", max_length=2048)
+    repository: str = Field(min_length=3, max_length=200, pattern=REPOSITORY_PATTERN)
+
+    @field_validator("url")
+    @classmethod
+    def _check_url(cls, url: str) -> str:
+        return check_backend_url(url)
+
+
+class _CreateRequest(_Strict):
     auth: IntegrationAuth
 
 
-class LokiConfigUpdate(_Strict):
-    """Loki settings to change. Omitted fields keep their value; `org_id: null` clears it."""
+class LokiCreateRequest(_CreateRequest):
+    kind: Literal["loki"]
+    config: TelemetryConfig
+
+
+class PrometheusCreateRequest(_CreateRequest):
+    kind: Literal["prometheus"]
+    config: PrometheusConfig
+
+
+class TempoCreateRequest(_CreateRequest):
+    kind: Literal["tempo"]
+    config: TelemetryConfig
+
+
+class GitHubCreateRequest(_CreateRequest):
+    kind: Literal["github"]
+    config: GitHubConfig
+
+
+# Payload for ``POST /v1/integrations``. The credential in `auth` is stored encrypted.
+IntegrationCreateRequest = Annotated[
+    LokiCreateRequest | PrometheusCreateRequest | TempoCreateRequest | GitHubCreateRequest,
+    Field(discriminator="kind"),
+]
+
+# The config fields each kind stores, so a PATCH can't set a field its kind doesn't use.
+_TELEMETRY_FIELDS = frozenset({"url", "service_label", "org_id"})
+CONFIG_FIELDS: dict[IntegrationKind, frozenset[str]] = {
+    "loki": _TELEMETRY_FIELDS,
+    "prometheus": _TELEMETRY_FIELDS,
+    "tempo": _TELEMETRY_FIELDS,
+    "github": frozenset({"url", "repository"}),
+}
+
+
+class IntegrationConfigUpdate(_Strict):
+    """Settings to change. Omitted fields keep their value; `org_id: null` clears it."""
 
     url: str | None = Field(default=None, max_length=2048)
     service_label: str | None = Field(
-        default=None, min_length=1, max_length=100, pattern=r"^[a-zA-Z_][a-zA-Z0-9_]*$"
+        default=None, min_length=1, max_length=100, pattern=SERVICE_LABEL_PATTERN
     )
     org_id: str | None = Field(default=None, min_length=1, max_length=200)
+    repository: str | None = Field(
+        default=None, min_length=3, max_length=200, pattern=REPOSITORY_PATTERN
+    )
 
     @field_validator("url")
     @classmethod
@@ -116,7 +175,7 @@ class LokiConfigUpdate(_Strict):
 
     @model_validator(mode="after")
     def _required_fields_not_null(self) -> Self:
-        for name in ("url", "service_label"):
+        for name in ("url", "service_label", "repository"):
             if name in self.model_fields_set and getattr(self, name) is None:
                 raise ValueError(f"{name} cannot be null")
         return self
@@ -129,7 +188,7 @@ class IntegrationUpdateRequest(_Strict):
     the whole credential is replaced, so a username can't end up paired with the old password.
     """
 
-    config: LokiConfigUpdate | None = None
+    config: IntegrationConfigUpdate | None = None
     auth: IntegrationAuth | None = None
 
     @model_validator(mode="after")

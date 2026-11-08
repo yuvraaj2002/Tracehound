@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict
 
-from tracehound.schemas.telemetry import Edge, ServiceNode, Topology
+from tracehound.schemas.topology import Edge, ServiceNode, Topology
 
 # Backstage kinds that become nodes. Components are the user's own services; resources are what
 # they depend on (databases, queues, buckets).

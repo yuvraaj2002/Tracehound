@@ -1,4 +1,4 @@
-"""Integration routes: connect the signed-in user's telemetry backends (Loki first)."""
+"""Integration routes: connect the signed-in user's telemetry backends."""
 
 import logging
 from uuid import UUID
@@ -8,7 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from tracehound.api.dependencies import CurrentUserDep, IntegrationManagementDep
 from tracehound.helpers.integration_client import test_connection
-from tracehound.helpers.integration_helper import IntegrationExists
+from tracehound.helpers.integration_helper import IntegrationExists, UnsupportedConfigField
 from tracehound.schemas import (
     IntegrationCreateRequest,
     IntegrationList,
@@ -63,6 +63,11 @@ def update_integration(
 ) -> IntegrationSummary:
     try:
         updated = integrations.update(user.user_id, integration_id, payload)
+    except UnsupportedConfigField as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"This integration has no such setting: {exc}.",
+        ) from exc
     except SQLAlchemyError as exc:
         logger.exception(
             "Failed to update integration %s for user %s", integration_id, user.user_id

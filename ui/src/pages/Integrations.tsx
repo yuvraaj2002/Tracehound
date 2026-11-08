@@ -15,7 +15,7 @@ const sources: Source[] = [
   { signal: 'Logs', name: 'Echo', logo: '/integrations/loki.svg', agent: 'Logs agent', product: 'Grafana Loki', description: 'Reads error bursts, stack traces and new messages from your services during the incident window.', color: 'var(--agent-logs)', kind: 'loki' },
   { signal: 'Metrics', name: 'Pulse', logo: '/integrations/prometheus.svg', agent: 'Metrics agent', product: 'Prometheus', description: 'Compares latency, error rate and saturation against the baseline before the incident.', color: 'var(--agent-metrics)', kind: 'prometheus' },
   { signal: 'Traces', name: 'Tether', logo: '/integrations/tempo.svg', agent: 'Dependency agent', product: 'Grafana Tempo', description: 'Follows slow and failing spans across service boundaries to find where trouble starts.', color: 'var(--agent-dependency)', kind: 'tempo' },
-  { signal: 'Deploys', name: 'Ledger', logo: '/integrations/github.svg', agent: 'Deploy agent', product: 'GitHub', description: 'Lines up releases and configuration changes with the moment the incident began.', color: 'var(--agent-deploy)', kind: 'github' },
+  { signal: 'Deploys', name: 'Ledger', logo: '/integrations/github.svg', agent: 'Deploy agent', product: 'GitHub', description: 'Lines up deployments with the moment the incident began.', color: 'var(--agent-deploy)', kind: 'github' },
 ]
 
 const statusLabel: Record<IntegrationStatus, string> = { untested: 'Not tested yet', active: 'Connected', failing: 'Failing' }
@@ -212,12 +212,13 @@ const urlHints: Record<IntegrationKind, { label: string, placeholder: string, hi
   tempo: { label: 'Tempo URL', placeholder: 'https://tempo-prod-04.grafana.net/tempo', hint: 'The base URL of Tempo’s query API, without /api.' },
   github: { label: 'GitHub API URL', placeholder: 'https://api.github.com', hint: 'api.github.com, or your GitHub Enterprise API base URL.' },
 }
-const introFor = (source: Source) => source.kind === 'github' ? 'Tracehound reads releases and commits from this repository, read-only, when it investigates an incident.' : `Tracehound runs read-only queries against this ${source.product} when it investigates an incident.`
+const introFor = (source: Source) => source.kind === 'github' ? 'Tracehound reads deployments from this repository, read-only, when it investigates an incident.' : `Tracehound runs read-only queries against this ${source.product} when it investigates an incident.`
 
 /** Connects a backend, or edits an existing connection when `integration` is given. The stored token
  *  is never sent back to the browser, so an edit leaves it alone unless a new one is typed. */
 function ConnectDialog({ source, integration, fallbackFocus, onSaved, onClose }: { source: Source, integration?: IntegrationSummary, fallbackFocus: RefObject<HTMLElement | null>, onSaved: (integration: IntegrationSummary) => void, onClose: () => void }) {
   const stored = integration?.config
+  const defaultLabel = source.kind === 'prometheus' ? 'job' : 'service_name'
   const [url, setUrl] = useState(stored?.url ?? (source.kind === 'github' ? 'https://api.github.com' : ''))
   const [repository, setRepository] = useState(stored?.repository ?? '')
   const isGithub = source.kind === 'github'
@@ -227,13 +228,13 @@ function ConnectDialog({ source, integration, fallbackFocus, onSaved, onClose }:
   // The credential lives only in this state and is sent once, over the API, to be encrypted.
   const [secret, setSecret] = useState('')
   const [showSecret, setShowSecret] = useState(false)
-  const [serviceLabel, setServiceLabel] = useState(stored?.service_label ?? 'service_name')
+  const [serviceLabel, setServiceLabel] = useState(stored?.service_label ?? defaultLabel)
   const [orgId, setOrgId] = useState(stored?.org_id ?? '')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const trimmedUrl = url.trim()
-  const label = serviceLabel.trim() || 'service_name'
+  const label = serviceLabel.trim() || defaultLabel
   const org = orgId.trim() || null
   const urlProblem = trimmedUrl && !/^https?:\/\/[^\s/?#]+/i.test(trimmedUrl) ? 'Enter a full URL, starting with https://' : null
   const labelProblem = serviceLabel.trim() && !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(serviceLabel.trim()) ? 'Letters, digits and underscores; it can’t start with a digit.' : null
@@ -331,7 +332,7 @@ function ConnectDialog({ source, integration, fallbackFocus, onSaved, onClose }:
         {isGithub && <div className="connect-field">
           <label htmlFor="github-repository">Repository</label>
           <input id="github-repository" value={repository} onChange={(event) => setRepository(event.target.value)} placeholder="acme/checkout" autoComplete="off" spellCheck={false} aria-describedby="github-repository-hint" aria-invalid={repositoryProblem ? true : undefined} />
-          <p id="github-repository-hint" className={repositoryProblem ? 'field-hint is-error' : 'field-hint'}>{repositoryProblem ?? 'The repository whose releases and commits are lined up with each incident.'}</p>
+          <p id="github-repository-hint" className={repositoryProblem ? 'field-hint is-error' : 'field-hint'}>{repositoryProblem ?? 'The repository whose deployments are lined up with each incident.'}</p>
         </div>}
 
         {!isGithub && <details className="connect-advanced">

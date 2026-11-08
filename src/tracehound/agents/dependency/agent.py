@@ -9,7 +9,8 @@ from tracehound.agents.dependency.prompt import SYSTEM_PROMPT
 from tracehound.agents.inference import StructuredLLM
 from tracehound.schemas.evidence import Evidence, EvidenceSource, hash_payload
 from tracehound.schemas.finding import Finding, SpecialistReport
-from tracehound.schemas.telemetry import Edge, Span, Topology
+from tracehound.schemas.topology import Edge, Topology
+from tracehound.schemas.traces import Span
 from tracehound.schemas.triage import InvestigationScope, Specialist
 from tracehound.tools.traces import TraceSource
 

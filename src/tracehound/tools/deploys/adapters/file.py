@@ -3,7 +3,7 @@
 from datetime import datetime
 from pathlib import Path
 
-from tracehound.schemas.telemetry import Deploy
+from tracehound.schemas.deploys import Deploy
 from tracehound.tools.deploys.base import DeploySource
 from tracehound.tools.triage import load_deploys
 

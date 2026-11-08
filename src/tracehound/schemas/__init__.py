@@ -58,7 +58,9 @@ from tracehound.schemas.model_catalog import (
     ProviderWithModels,
 )
 from tracehound.schemas.plan import BillingInterval, PlanList, PlanPrice, PlanSummary
-from tracehound.schemas.telemetry import Deploy, Edge, ServiceNode, Span, Topology
+from tracehound.schemas.deploys import Deploy
+from tracehound.schemas.topology import Edge, ServiceNode, Topology
+from tracehound.schemas.traces import Span
 from tracehound.schemas.triage import (
     InvestigationScope,
     Specialist,

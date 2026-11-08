@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 
-from tracehound.schemas.telemetry import Span
+from tracehound.schemas.traces import Span
 from tracehound.tools.traces.base import TraceSource
 
 

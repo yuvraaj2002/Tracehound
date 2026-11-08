@@ -6,7 +6,7 @@ from pathlib import Path
 
 from pydantic import TypeAdapter
 
-from tracehound.schemas.telemetry import LogLine
+from tracehound.schemas.logs import LogLine
 from tracehound.tools.logs.base import LogSource
 
 _LOGS = TypeAdapter(list[LogLine])

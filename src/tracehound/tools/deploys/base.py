@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
 
-from tracehound.schemas.telemetry import Deploy
+from tracehound.schemas.deploys import Deploy
 
 
 class DeploySource(ABC):

@@ -137,7 +137,7 @@ class LiveAgents:
         from tracehound.agents.metrics import MetricsAgent
         from tracehound.agents.triage import TriageAgent
         from tracehound.helpers.integration_client import live_sources
-        from tracehound.schemas.telemetry import Topology
+        from tracehound.schemas.topology import Topology
 
         connections = self._integrations.connections(user_id)
         missing = sorted(k for k in SPECIALIST_KINDS.values() if k not in connections)

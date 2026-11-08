@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
 
-from tracehound.schemas.telemetry import Span
+from tracehound.schemas.traces import Span
 
 
 class TraceSource(ABC):
