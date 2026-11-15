@@ -79,6 +79,8 @@ def parse_catalog(source: str) -> ServiceCatalog:
     ignored: Counter[str] = Counter()
     entities: dict[str, CatalogEntity] = {}
     declared: dict[str, str] = {}  # every Component/Resource name, valid or not
+    # Lowercased github.com/project-slug -> first entity that claimed it (one service ↔ one repo).
+    repos_claimed: dict[str, str] = {}
     links: list[tuple[str, str, str]] = []  # (source, target ref, field) for later resolution
 
     for index, doc in enumerate(documents, start=1):
@@ -126,6 +128,17 @@ def parse_catalog(source: str) -> ServiceCatalog:
         if repository and not _SLUG.match(repository):
             problems.append(f"{where}: {REPO_ANNOTATION} must be owner/name")
             repository = None
+        elif repository:
+            # Deploy lookup is 1 service → 1 repo for now; shared/monorepo slugs are rejected here.
+            prior = repos_claimed.get(repository.casefold())
+            if prior is not None:
+                problems.append(
+                    f"{where}: {REPO_ANNOTATION} {repository} is already used by {prior}; "
+                    "map each service to its own GitHub repository"
+                )
+                repository = None
+            else:
+                repos_claimed[repository.casefold()] = name
         node_kind = "http" if kind == "Component" else spec_type
         entities[name] = CatalogEntity(
             name=name,

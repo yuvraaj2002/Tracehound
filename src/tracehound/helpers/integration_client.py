@@ -164,9 +164,8 @@ def live_sources(
 ) -> LiveSources:
     """Build a source for each connected backend.
 
-    Deploys for a service are read from its repo in `repos` (from the service catalog), else
-    from the GitHub integration's repository; deployments sharing a repo are told apart by the
-    ``service`` key in their payload.
+    Deploys for a service are read from its repo in `repos` (from the service catalog; one
+    service per repository), else from the GitHub integration's repository as a fallback.
     """
     sources = LiveSources()
 

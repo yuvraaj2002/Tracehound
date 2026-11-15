@@ -147,7 +147,7 @@ function EmptyCatalog({ onStart }: { onStart: () => void }) {
   return (
     <div className="catalog-empty">
       <p className="notice-title">No catalog yet</p>
-      <p>Upload the <code>catalog-info.yaml</code> you keep for Backstage, or paste one in. Each service is a <code>Component</code>, each database or queue a <code>Resource</code>, and <code>spec.dependsOn</code> says what calls what.</p>
+      <p>Upload the <code>catalog-info.yaml</code> you keep for Backstage, or paste one in. Each service is a <code>Component</code>, each database or queue a <code>Resource</code>, and <code>spec.dependsOn</code> says what calls what. For deploys, give each service its own <code>github.com/project-slug</code> (one service per repository).</p>
       <button type="button" className="button-primary" onClick={onStart}>Add catalog <span aria-hidden="true">+</span></button>
     </div>
   )

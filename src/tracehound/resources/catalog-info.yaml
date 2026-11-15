@@ -6,6 +6,8 @@
 #   System / Group are read for context but are not graph nodes.
 #
 # Edges come from spec.dependsOn: "A dependsOn B" means A calls B.
+# Each Component that deploys should set github.com/project-slug to its own owner/repo
+# (one service ↔ one repository; shared/monorepo slugs are rejected on upload).
 # Replace the names below with your own and upload the file.
 apiVersion: backstage.io/v1alpha1
 kind: Group

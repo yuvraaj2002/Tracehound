@@ -109,6 +109,21 @@ def test_duplicate_names_are_rejected() -> None:
     assert "the name orders is used more than once" in _problems(CATALOG + duplicate)[0]
 
 
+def test_duplicate_repository_slugs_are_rejected() -> None:
+    shared = (
+        "---\napiVersion: backstage.io/v1alpha1\nkind: Component\n"
+        "metadata:\n  name: payments-api\n"
+        "  annotations: {github.com/project-slug: Acme/Checkout}\n"
+        "spec: {type: service, owner: team-checkout}\n"
+    )
+    problems = _problems(CATALOG + shared)
+    assert any(
+        "github.com/project-slug Acme/Checkout is already used by checkout-api" in p
+        and "map each service to its own GitHub repository" in p
+        for p in problems
+    )
+
+
 def test_yaml_tags_cannot_build_python_objects() -> None:
     assert _problems("!!python/object/apply:os.system ['true']")[0].startswith("not valid YAML")
 

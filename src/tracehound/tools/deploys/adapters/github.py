@@ -15,10 +15,10 @@ _PER_PAGE = 100
 class GitHubDeploySource(DeploySource):
     """Looks up what was deployed to production on GitHub during an incident window.
 
-    Pass ``repos`` as ``{service_name: "owner/repo"}``. For a monorepo, put the same repo under
-    each service and set ``payload.service`` on the deployment so we know which service it is.
-    Version and config changes come from the deployment payload when the pipeline sets them;
-    otherwise version falls back to the git ref (branch or tag).
+    Pass ``repos`` as ``{service_name: "owner/repo"}``. Tracehound expects one service per
+    repository (enforced when the catalog is registered). Version and config changes come from
+    the deployment payload when the pipeline sets them; otherwise version falls back to the git
+    ref (branch or tag). If ``payload.service`` is set to another name, that row is skipped.
     """
 
     def __init__(

@@ -28,7 +28,8 @@ class CatalogEntity(BaseModel):
     description: str | None = None
     system: str | None = None
     lifecycle: str | None = None
-    # `github.com/project-slug` annotation, owner/name.
+    # `github.com/project-slug` annotation, owner/name. Each slug may appear on only one entity
+    # (one service ↔ one repo); monorepo sharing is not supported yet.
     repository: str | None = None
 
 
