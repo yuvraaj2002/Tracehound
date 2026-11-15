@@ -1,18 +1,11 @@
 """The base class every deploy backend adapter extends."""
 
-from abc import ABC, abstractmethod
-from datetime import datetime
-
 from tracehound.schemas.deploys import Deploy
+from tracehound.tools.source import Source
 
 
-class DeploySource(ABC):
+class DeploySource(Source[Deploy]):
     """Fetches deployments from one backend and returns them as canonical ``Deploy``s.
 
-    Each adapter's ``__init__`` takes whatever its backend needs (a path, an HTTP client, ...),
-    so only ``fetch`` is part of the contract.
+    ``fetch`` returns deploys to ``services`` with ``start <= deployed_at <= end``, oldest first.
     """
-
-    @abstractmethod
-    def fetch(self, services: set[str], start: datetime, end: datetime) -> list[Deploy]:
-        """Deploys to ``services`` with ``start <= deployed_at <= end``, oldest first."""

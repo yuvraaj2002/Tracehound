@@ -1,18 +1,11 @@
 """The base class every trace backend adapter extends."""
 
-from abc import ABC, abstractmethod
-from datetime import datetime
-
 from tracehound.schemas.traces import Span
+from tracehound.tools.source import Source
 
 
-class TraceSource(ABC):
+class TraceSource(Source[Span]):
     """Fetches spans from one backend and returns them as canonical ``Span``s.
 
-    Each adapter's ``__init__`` takes whatever its backend needs (a path, an HTTP client, ...),
-    so only ``fetch`` is part of the contract.
+    ``fetch`` returns spans from ``services`` with ``start <= span.start <= end``, oldest first.
     """
-
-    @abstractmethod
-    def fetch(self, services: set[str], start: datetime, end: datetime) -> list[Span]:
-        """Spans from ``services`` with ``start <= span.start <= end``, oldest first."""
