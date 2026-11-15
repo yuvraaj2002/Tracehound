@@ -7,7 +7,7 @@ from pathlib import Path
 from pydantic import TypeAdapter
 
 from tracehound.schemas.traces import Span
-from tracehound.tools.traces.base import TraceSource
+from tracehound.tools.source import TraceSource
 
 _SPANS = TypeAdapter(list[Span])
 

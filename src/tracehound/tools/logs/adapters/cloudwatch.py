@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from tracehound.schemas.logs import LogLine
-from tracehound.tools.logs.base import LogSource
+from tracehound.tools.source import LogSource
 
 
 class CloudWatchLogSource(LogSource):

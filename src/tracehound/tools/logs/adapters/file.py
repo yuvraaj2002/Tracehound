@@ -7,7 +7,7 @@ from pathlib import Path
 from pydantic import TypeAdapter
 
 from tracehound.schemas.logs import LogLine
-from tracehound.tools.logs.base import LogSource
+from tracehound.tools.source import LogSource
 from tracehound.tools.logs.dedupe import dedupe_by_message
 
 _LOGS = TypeAdapter(list[LogLine])

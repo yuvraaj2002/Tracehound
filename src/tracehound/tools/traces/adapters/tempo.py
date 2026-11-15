@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 
 from tracehound.schemas.traces import Span
-from tracehound.tools.traces.base import TraceSource
+from tracehound.tools.source import TraceSource
 
 
 class TempoTraceSource(TraceSource):

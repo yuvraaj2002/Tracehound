@@ -6,7 +6,7 @@ from tracehound.tools.metrics.adapters.prometheus import (
     MetricQuery,
     PrometheusMetricSource,
 )
-from tracehound.tools.metrics.base import MetricSource
+from tracehound.tools.source import MetricSource
 
 __all__ = [
     "DEFAULT_QUERIES",

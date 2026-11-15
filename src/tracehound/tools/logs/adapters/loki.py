@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 import httpx
 
 from tracehound.schemas.logs import LogLine
-from tracehound.tools.logs.base import LogSource
+from tracehound.tools.source import LogSource
 from tracehound.tools.logs.dedupe import dedupe_by_message
 
 _LEVELS = {

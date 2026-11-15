@@ -2,6 +2,6 @@
 
 from tracehound.tools.traces.adapters.file import FileTraceSource
 from tracehound.tools.traces.adapters.tempo import TempoTraceSource
-from tracehound.tools.traces.base import TraceSource
+from tracehound.tools.source import TraceSource
 
 __all__ = ["FileTraceSource", "TempoTraceSource", "TraceSource"]

@@ -2,6 +2,6 @@
 
 from tracehound.tools.deploys.adapters.file import FileDeploySource
 from tracehound.tools.deploys.adapters.github import GitHubDeploySource
-from tracehound.tools.deploys.base import DeploySource
+from tracehound.tools.source import DeploySource
 
 __all__ = ["DeploySource", "FileDeploySource", "GitHubDeploySource"]
