@@ -57,7 +57,7 @@ def _source(
     return GitHubDeploySource(client, repos, **kwargs)
 
 
-def test_maps_deployments_and_takes_previous_version_from_older_one() -> None:
+def test_maps_in_window_deployments_without_previous_version() -> None:
     requests: list[httpx.Request] = []
     [deploy] = _source({"acme/checkout": [CHECKOUT]}, requests).fetch({"checkout-api"}, START, END)
 
@@ -66,7 +66,7 @@ def test_maps_deployments_and_takes_previous_version_from_older_one() -> None:
     assert (params["environment"], params["per_page"]) == ("production", "100")
     assert deploy.id == "gh-3"
     assert deploy.service == "checkout-api"
-    assert (deploy.previous_version, deploy.version) == ("v1.13.4", "1.14.0")
+    assert (deploy.previous_version, deploy.version) == (None, "1.14.0")
     assert deploy.deployed_at == datetime(2026, 10, 15, 13, 52, tzinfo=UTC)
     assert (deploy.author, deploy.commit) == ("deploy-bot", "0000003")
     assert deploy.config_diff == {"DB_POOL_SIZE": {"old": "20", "new": "5"}}

@@ -49,8 +49,8 @@ class GitHubDeploySource(DeploySource):
     def _list_raw(self, repo: str, start: datetime) -> list[dict[str, Any]]:
         """Download deployments for ``repo``, newest first, until one is older than ``start``.
 
-        We keep that older deploy so the next step can set ``previous_version`` on the first
-        in-window deploy.
+        Rows older than ``start`` are only a stop signal so we know every in-window deploy was
+        seen; they are not kept for ``previous_version``.
         """
         result: list[dict[str, Any]] = []
         for page in range(1, self._max_pages + 1):
@@ -62,10 +62,12 @@ class GitHubDeploySource(DeploySource):
             batch = response.json()
             if not isinstance(batch, list):
                 raise ValueError(f"unexpected GitHub response: {str(batch)[:200]}")
-            result.extend(batch)
-            reached_before_start = any(
-                datetime.fromisoformat(raw["created_at"]) < start for raw in batch
-            )
+            reached_before_start = False
+            for raw in batch:
+                if datetime.fromisoformat(raw["created_at"]) < start:
+                    reached_before_start = True
+                    break
+                result.append(raw)
             if len(batch) < _PER_PAGE or reached_before_start:
                 return result
         raise ValueError(f"{repo} has more than {self._max_pages} pages of deployments after start")
@@ -75,10 +77,11 @@ class GitHubDeploySource(DeploySource):
     ) -> list[Deploy]:
         """Turn this service's GitHub deployments into in-window ``Deploy`` records.
 
-        Keeps only deployments that belong to ``service``, pairs each with the one before it
-        for ``previous_version``, then drops anything outside ``[start, end]``.
+        Keeps only deployments that belong to ``service`` and fall in ``[start, end]``.
+        ``previous_version`` is left unset; change detail comes from version, commit,
+        description and ``config_diff``.
         """
-        matched: list[dict[str, Any]] = []
+        deploys: list[Deploy] = []
         for raw in self._list_raw(self._repos[service], start):
             payload = raw.get("payload")
             if isinstance(payload, str):
@@ -91,15 +94,6 @@ class GitHubDeploySource(DeploySource):
             named = payload.get("service")
             if named is not None and named != service:
                 continue
-            matched.append({**raw, "_payload": payload})
-
-        deploys: list[Deploy] = []
-        for i, raw in enumerate(matched):
-            payload = raw["_payload"]
-            older = matched[i + 1] if i + 1 < len(matched) else None
-            previous_version = None
-            if older is not None:
-                previous_version = str(older["_payload"].get("version") or older["ref"])
             deployed_at = datetime.fromisoformat(raw["created_at"])
             if not (start <= deployed_at <= end):
                 continue
@@ -108,7 +102,7 @@ class GitHubDeploySource(DeploySource):
                     id=f"gh-{raw['id']}",
                     service=service,
                     version=str(payload.get("version") or raw["ref"]),
-                    previous_version=previous_version,
+                    previous_version=None,
                     deployed_at=deployed_at,
                     author=(raw.get("creator") or {}).get("login", "unknown"),
                     commit=raw["sha"],

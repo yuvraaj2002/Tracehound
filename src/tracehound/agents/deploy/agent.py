@@ -99,9 +99,12 @@ def _evidence(deploy: Deploy, run_id: UUID, collected_at: datetime) -> Evidence:
         f"{key} {change.get('old')}->{change.get('new')}"
         for key, change in deploy.config_diff.items()
     )
-    excerpt = (
-        f"{deploy.service} {deploy.previous_version}->{deploy.version}: {deploy.change_summary}"
+    version_bit = (
+        f"{deploy.previous_version}->{deploy.version}"
+        if deploy.previous_version
+        else deploy.version
     )
+    excerpt = f"{deploy.service} {version_bit}: {deploy.change_summary}"
     if diff:
         excerpt += f"; {diff}"
     return Evidence(

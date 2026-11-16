@@ -85,7 +85,7 @@ def main() -> None:
             .json()
         )
         if not existing and args.action == "start":
-            # A baseline, so the bad deploy has a previous_version to point back to.
+            # Seed a good baseline deploy before the fault so the timeline has a clean before/after.
             create_deployment(gh, args.repo, args.environment, GOOD, GOOD)
         deployment_id = create_deployment(gh, args.repo, args.environment, release, before)
     print(f"deployed {release['version']} to {args.environment} (deployment {deployment_id})")
