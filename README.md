@@ -1,10 +1,14 @@
 # Tracehound
 
-Evidence-first multi-agent incident investigation for Python services. Given an alert, it
-gathers logs, metrics and deployment evidence, tests competing root-cause hypotheses, and
-produces an auditable, cited incident report.
+Evidence-first multi-agent incident investigation for Python services. Given an alert, a
+LangGraph workflow triages it, then specialist agents read logs (Loki), metrics
+(Prometheus), traces (Tempo), and deploys (GitHub). A hypothesis step returns candidate
+root causes, and every claim cites evidence. The API is FastAPI. The UI in `ui/` is React.
 
-> Status: early scaffolding (PRD roadmap, week 1).
+> Status: in active development. Live Loki, Prometheus, Tempo, and GitHub adapters are
+> wired and run when those integrations are connected. Accounts in `FIXTURE_USER_IDS`
+> investigate pinned scenario files instead. Agent calls use a local Ollama model.
+> Bring-your-own-key for hosted model providers is planned, below.
 
 ## Layout
 
@@ -23,7 +27,8 @@ scenarios/       pinned telemetry per scenario (what agents may read)
 ground_truth/    root-cause answers per scenario (never shown to agents)
 supabase/        database migrations (applied to the Supabase project)
 docs/adr/        architecture decision records
-tests/           unit and integration tests
+  tests/           unit and integration tests
+ui/                React UI
 ```
 
 ## Development
@@ -59,12 +64,15 @@ The API allows browser calls from the origins in `CORS_ORIGINS` (comma-separated
 
 ### Investigations
 
-`POST /v1/incidents` starts an investigation in a background thread. Only users listed in
-`FIXTURE_USER_IDS` (comma-separated UUIDs) are investigated, against the scenario files in
+`POST /v1/incidents` starts an investigation in a background thread. Accounts listed in
+`FIXTURE_USER_IDS` (comma-separated UUIDs) are investigated against the scenario files in
 `scenarios/<FIXTURE_SCENARIO>` (default `checkout_db_pool_exhaustion`; override the folder with
-`FIXTURE_SCENARIOS_DIR`); other users' incidents end FAILED because live integrations are not
-wired up yet. `INVESTIGATION_WORKERS` (default 2) caps concurrent runs, and `OLLAMA_MODEL`
-overrides the local Ollama model. Ollama must be running, or the run ends FAILED.
+`FIXTURE_SCENARIOS_DIR`). Every other account is investigated through the live adapters:
+Loki for logs, Prometheus for metrics, Tempo for traces, and GitHub for deploys. The run
+fails with a message naming any of those integrations that are not connected, or if the
+GitHub integration has no repository. `INVESTIGATION_WORKERS` (default 2) caps concurrent
+runs, and `OLLAMA_MODEL` overrides the local Ollama model. Ollama must be running, or the
+run ends FAILED.
 
 ### Integrations
 
