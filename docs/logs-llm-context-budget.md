@@ -12,7 +12,7 @@ Related code today:
 
 ## What we already do
 
-1. **Server-side narrow** — Loki query is scoped to in-scope services, an inclusive time window, and WARN/ERROR-ish lines (LogQL `|~` filter).
+1. **Server-side narrow** — Loki dual-lane fetch: structured `detected_level=~warn|error|fatal|critical`, plus non-hard lines matching failure keywords (`error|exception|timeout|panic|fatal|critical`). Volume cap / newest-bias still pending.
 2. **Dedupe / cluster** — after mapping to `LogLine`, identical `message` values collapse to the first occurrence with an `occurrence` count.
 
 These reduce load; they do **not** guarantee the serialized `LogsContext` fits the model window.

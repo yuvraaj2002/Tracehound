@@ -6,7 +6,7 @@
 ## Context
 
 Specialists read telemetry through adapters (`LogSource` in `tools/logs/`: `FileLogSource`,
-`LokiLogSource`, with CloudWatch and Elasticsearch stubbed; `MetricSource` in `tools/metrics/`:
+`LokiLogSource`, with Elasticsearch stubbed; `MetricSource` in `tools/metrics/`:
 `FileMetricSource`, `PrometheusMetricSource`; `TraceSource` in `tools/traces/`:
 `FileTraceSource`, `TempoTraceSource`; `DeploySource` in `tools/deploys/`: `FileDeploySource`,
 `GitHubDeploySource`). In production each customer uses their own backend, with their own URL, field names and credentials. A run needs to know
@@ -25,7 +25,7 @@ starts.
 integrations
   id            uuid
   tenant_id     uuid            -- which customer
-  kind          'loki' | 'cloudwatch' | 'elasticsearch'
+  kind          'loki' | 'elasticsearch'
   config        jsonb           -- non-secret: url, region, service_label, field mapping
   secret_ref    text            -- pointer to the credential, never the credential itself
   status        'active' | 'failing'

@@ -24,18 +24,28 @@ _LEVELS = {
     "fatal": "ERROR",
 }
 
-# Case-insensitive line filter: matches JSON ("level":"error") and plain-text warnings alike.
-_WARN_ERROR_PATTERN = r"(?i)\b(warn(ing)?|err(or)?|fatal|critical|panic|exception)\b"
+# Loki's ingest-time discover_log_levels (default on) writes structured metadata
+# ``detected_level`` with these normalized lowercase values. Hard lane filters on them —
+# not with a line-body regex — so INFO that merely mentions "error" stays out of lane 1.
+_HARD_DETECTED_LEVELS = "warn|error|fatal|critical"
+
+# Soft lane (non-hard levels only): failure keywords in the line body. Keep this tight;
+# softer words like "failed" / "denied" / "warn" are intentionally out for v1 noise control.
+_SOFT_FAILURE_KEYWORDS = r"(?i)\b(error|exception|timeout|panic|fatal|critical)\b"
 
 
 class LokiLogSource(LogSource):
-    """Reads WARN/ERROR-ish log lines from Loki's ``/loki/api/v1/query_range``.
+    """Reads failure-biased log lines from Loki's ``/loki/api/v1/query_range``.
 
     Services are matched on one stream label (``service_name`` by default, which Loki sets from
-    OpenTelemetry's ``service.name``). A LogQL line filter keeps warn/error-like lines so INFO
-    noise never leaves Loki. Lines that are JSON objects supply level, message and trace ID;
-    anything else is kept as the raw message. Loki has no line IDs, so each line gets a stable ID
-    hashed from its labels, timestamp and text.
+    OpenTelemetry's ``service.name``). Fetch uses two lanes Loki cannot OR in one log query:
+
+    * **Hard** — structured metadata ``detected_level`` ∈ warn|error|fatal|critical
+    * **Soft** — other levels whose **line body** matches failure keywords
+
+    Results are merged and deduped. Lines that are JSON objects supply level, message and
+    trace ID; anything else is kept as the raw message. Loki has no line IDs, so each line gets
+    a stable ID hashed from its labels, timestamp and text.
     """
 
     def __init__(
@@ -49,15 +59,25 @@ class LokiLogSource(LogSource):
         self._limit = limit
 
     def fetch(self, services: set[str], start: datetime, end: datetime) -> list[LogLine]:
-        """WARN/ERROR-ish lines from ``services`` with ``start <= timestamp <= end``, oldest first."""
+        """Dual-lane failure-biased lines from ``services`` in ``[start, end]``, oldest first."""
         if not services:
             return []
         # Backtick strings are raw in LogQL, so only regex metacharacters need escaping.
         names = "|".join(re.escape(s) for s in sorted(services))
-        query = f"{{{self._service_label}=~`{names}`}} |~ `{_WARN_ERROR_PATTERN}`"
+        selector = f"{{{self._service_label}=~`{names}`}}"
+        # ``detected_level`` is structured metadata — pipeline label filter, not inside {}.
+        hard_query = f"{selector} | detected_level=~`{_HARD_DETECTED_LEVELS}`"
+        # Soft lane: exclude hard severities, then grep the body for failure keywords.
+        soft_query = (
+            f"{selector} | detected_level!~`{_HARD_DETECTED_LEVELS}` "
+            f"|~ `{_SOFT_FAILURE_KEYWORDS}`"
+        )
         # Loki's end is exclusive; nudge past ``end`` so our window stays inclusive.
-        lines = self._query(query, start, end + timedelta(microseconds=1))
-        return dedupe_by_message(sorted(lines, key=lambda line: line.timestamp))
+        window_end = end + timedelta(microseconds=1)
+        by_id = {line.id: line for line in self._query(hard_query, start, window_end)}
+        for line in self._query(soft_query, start, window_end):
+            by_id.setdefault(line.id, line)
+        return dedupe_by_message(sorted(by_id.values(), key=lambda line: line.timestamp))
 
     def _query(self, query: str, start: datetime, end: datetime) -> list[LogLine]:
         """Run one Loki ``query_range`` over ``[start, end)`` and map each hit to a ``LogLine``.

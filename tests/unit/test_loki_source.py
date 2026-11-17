@@ -9,6 +9,12 @@ START = datetime(2026, 10, 15, 13, 45, tzinfo=UTC)
 END = datetime(2026, 10, 15, 13, 50, tzinfo=UTC)
 BASE = int(START.timestamp()) * 1_000_000_000
 
+HARD_QUERY = "{service_name=~`orders|orders\\-db`} | detected_level=~`warn|error|fatal|critical`"
+SOFT_QUERY = (
+    "{service_name=~`orders|orders\\-db`} | detected_level!~`warn|error|fatal|critical` "
+    "|~ `(?i)\\b(error|exception|timeout|panic|fatal|critical)\\b`"
+)
+
 
 def _entry(second: int, text: str, service: str = "orders") -> tuple[dict[str, str], list[str]]:
     return {"service_name": service}, [str(BASE + second * 1_000_000_000), text]
@@ -42,12 +48,20 @@ def test_fetches_warn_error_lines_in_inclusive_window_oldest_first() -> None:
         "error: slow query",
         "error: connection pool exhausted",
     ]
-    assert len(requests) == 1
+    assert len(requests) == 2
     params = requests[0].url.params
-    assert params["query"].startswith("{service_name=~`orders|orders\\-db`} |~ `")
+    assert params["query"] == HARD_QUERY
     assert params["direction"] == "forward"
     assert int(params["start"]) == BASE
     assert int(params["end"]) == int(END.timestamp()) * 1_000_000_000 + 1000  # inclusive end
+
+
+def test_dual_lane_queries_hard_detected_level_and_soft_keywords() -> None:
+    """Stage A2/A3: hard structured severity OR soft body keywords (two LogQL queries)."""
+    requests: list[httpx.Request] = []
+    _source([], requests).fetch({"orders", "orders-db"}, START, END)
+
+    assert [r.url.params["query"] for r in requests] == [HARD_QUERY, SOFT_QUERY]
 
 
 def test_maps_json_fields_onto_log_line() -> None:
@@ -64,11 +78,24 @@ def test_maps_json_fields_onto_log_line() -> None:
     assert line.id.startswith("loki-")
 
 
-def test_plain_text_keeps_raw_message_and_defaults_level() -> None:
-    lines = _source([_entry(1, "error: all quiet")], []).fetch({"orders"}, START, END)
+def test_maps_fatal_and_critical_labels_to_error() -> None:
+    fatal = _entry(1, '{"level":"fatal","message":"abort"}', service="orders")
+    critical = (
+        {"service_name": "orders", "detected_level": "critical"},
+        [str(BASE + 2 * 1_000_000_000), '{"message":"disk full"}'],
+    )
+    lines = _source([fatal, critical], []).fetch({"orders"}, START, END)
 
-    assert lines[0].message == "error: all quiet"
-    assert lines[0].level == "INFO"  # no structured level field; body still matched LogQL
+    assert [line.level for line in lines] == ["ERROR", "ERROR"]
+    assert [line.message for line in lines] == ["abort", "disk full"]
+
+
+def test_plain_text_keeps_raw_message_and_defaults_level() -> None:
+    # Mapping-only: mock returns the line; real Loki soft lane would require a keyword match.
+    lines = _source([_entry(1, "all quiet")], []).fetch({"orders"}, START, END)
+
+    assert lines[0].message == "all quiet"
+    assert lines[0].level == "INFO"
     assert lines[0].trace_id is None
 
 
