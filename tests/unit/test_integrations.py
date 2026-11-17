@@ -1,0 +1,522 @@
+import os
+from datetime import UTC, datetime
+from uuid import UUID, uuid4
+
+import pytest
+from cryptography.exceptions import InvalidTag
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from sqlalchemy.exc import OperationalError
+
+from tests.unit.test_api_keys import USER_ID, VERIFIER, _auth
+from tracehound.api.app import create_app
+from tracehound.api.dependencies import get_integration_management, get_token_verifier
+from tracehound.helpers.integration_helper import (
+    IntegrationExists,
+    IntegrationManagement,
+    SecretBox,
+    integration_encryption_key,
+)
+from tracehound.schemas import (
+    IntegrationCreateRequest,
+    IntegrationList,
+    IntegrationSummary,
+    IntegrationUpdateRequest,
+)
+from tracehound.schemas.integration import LokiCreateRequest
+
+GRAFANA_CLOUD = {
+    "kind": "loki",
+    "config": {"url": "https://logs-prod-012.grafana.net/", "service_label": "service_name"},
+    "auth": {"type": "basic", "username": "123456", "password": "glc_secret"},
+}
+
+
+class MemoryIntegrations:
+    """In-memory stand-in for `IntegrationManagement`, so these tests need no database."""
+
+    def __init__(self) -> None:
+        self.created: list[tuple[UUID, IntegrationCreateRequest]] = []
+        self.summaries: list[tuple[UUID, IntegrationSummary]] = []
+
+    def create(self, user_id: UUID, request: IntegrationCreateRequest) -> IntegrationSummary:
+        if any(uid == user_id and r.kind == request.kind for uid, r in self.created):
+            raise IntegrationExists(request.kind)
+        self.created.append((user_id, request))
+        config, secret = IntegrationManagement.split_auth(request)
+        summary = IntegrationSummary(
+            id=uuid4(),
+            kind=request.kind,
+            config=config,
+            has_secret=secret is not None,
+            status="untested",
+            created_at=datetime.now(UTC),
+        )
+        self.summaries.append((user_id, summary))
+        return summary
+
+    def list(self, user_id: UUID) -> IntegrationList:
+        return IntegrationList(items=[s for uid, s in self.summaries if uid == user_id])
+
+    def update(
+        self, user_id: UUID, integration_id: UUID, request: IntegrationUpdateRequest
+    ) -> IntegrationSummary | None:
+        for i, (uid, summary) in enumerate(self.summaries):
+            if uid == user_id and summary.id == integration_id:
+                config, replaced, secret = IntegrationManagement.merge_update(
+                    summary.kind, summary.config, request
+                )
+                has_secret = (secret is not None) if replaced else summary.has_secret
+                updated = summary.model_copy(
+                    update={"config": config, "has_secret": has_secret, "status": "untested"}
+                )
+                self.summaries[i] = (uid, updated)
+                return updated
+        return None
+
+    def delete(self, user_id: UUID, integration_id: UUID) -> bool:
+        for i, (uid, summary) in enumerate(self.summaries):
+            if uid == user_id and summary.id == integration_id:
+                del self.summaries[i]
+                self.created = [
+                    (u, r) for u, r in self.created if (u, r.kind) != (uid, summary.kind)
+                ]
+                return True
+        return False
+
+
+class BrokenIntegrations:
+    def update(
+        self, user_id: UUID, integration_id: UUID, request: IntegrationUpdateRequest
+    ) -> IntegrationSummary | None:
+        raise OperationalError("SELECT 1", None, Exception("connection lost"))
+
+    def create(self, user_id: UUID, request: IntegrationCreateRequest) -> IntegrationSummary:
+        raise OperationalError("SELECT 1", None, Exception("connection lost"))
+
+    def list(self, user_id: UUID) -> IntegrationList:
+        raise OperationalError("SELECT 1", None, Exception("connection lost"))
+
+    def delete(self, user_id: UUID, integration_id: UUID) -> bool:
+        raise OperationalError("SELECT 1", None, Exception("connection lost"))
+
+
+def _app_with(integrations: object) -> FastAPI:
+    app = create_app(engine_factory=lambda: pytest.fail("engine should not be created"))
+    app.dependency_overrides[get_integration_management] = lambda: integrations
+    app.dependency_overrides[get_token_verifier] = lambda: VERIFIER
+    return app
+
+
+@pytest.fixture
+def integrations() -> MemoryIntegrations:
+    return MemoryIntegrations()
+
+
+@pytest.fixture
+def client(integrations: MemoryIntegrations) -> TestClient:
+    return TestClient(_app_with(integrations))
+
+
+def _with(**changes: object) -> dict:
+    return {**GRAFANA_CLOUD, **changes}
+
+
+# Every source
+
+
+GITHUB = {
+    "kind": "github",
+    "config": {"url": "https://api.github.com", "repository": "acme/checkout"},
+    "auth": {"type": "bearer", "token": "ghp_secret"},
+}
+
+
+def _post(client: TestClient, payload: dict) -> dict:
+    response = client.post("/v1/integrations", json=payload, headers=_auth())
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+@pytest.mark.parametrize("kind", ["prometheus", "tempo"])
+def test_creates_telemetry_backends(client: TestClient, kind: str) -> None:
+    body = _post(client, _with(kind=kind, config={"url": f"https://{kind}.acme.com/"}))
+    assert body["kind"] == kind
+    assert body["config"]["url"] == f"https://{kind}.acme.com"
+    assert body["has_secret"] is True
+
+
+def test_service_label_defaults_per_kind(client: TestClient) -> None:
+    config = {"url": "https://backend.acme.com"}
+    assert _post(client, _with(config=config))["config"]["service_label"] == "service_name"
+    prometheus = _post(client, _with(kind="prometheus", config=config))
+    assert prometheus["config"]["service_label"] == "job"
+    assert _post(client, _with(kind="tempo", config=config))["config"]["service_label"] == (
+        "service_name"
+    )
+
+
+def test_creates_github_with_repository(client: TestClient) -> None:
+    body = _post(client, GITHUB)
+    assert body["config"]["repository"] == "acme/checkout"
+    assert body["config"]["auth_type"] == "bearer"
+    assert "service_label" not in body["config"]
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {"url": "https://api.github.com"},
+        {"url": "https://api.github.com", "repository": "not-a-repo"},
+        {"url": "http://api.github.com", "repository": "acme/checkout"},
+        {"url": "https://api.github.com", "repository": "acme/checkout", "service_label": "job"},
+    ],
+)
+def test_rejects_invalid_github_config(
+    client: TestClient, config: dict, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("ALLOW_INSECURE_INTEGRATION_URLS", raising=False)
+    payload = {**GITHUB, "config": config}
+    assert client.post("/v1/integrations", json=payload, headers=_auth()).status_code == 422
+
+
+def test_updates_github_repository(client: TestClient) -> None:
+    created = _post(client, GITHUB)
+    response = client.patch(
+        f"/v1/integrations/{created['id']}",
+        json={"config": {"repository": "acme/payments"}},
+        headers=_auth(),
+    )
+    assert response.status_code == 200
+    assert response.json()["config"]["repository"] == "acme/payments"
+
+
+@pytest.mark.parametrize(
+    ("payload", "changes"),
+    [(GITHUB, {"service_label": "job"}), (GRAFANA_CLOUD, {"repository": "acme/checkout"})],
+)
+def test_update_rejects_field_of_another_kind(
+    client: TestClient, payload: dict, changes: dict
+) -> None:
+    created = _post(client, payload)
+    response = client.patch(
+        f"/v1/integrations/{created['id']}", json={"config": changes}, headers=_auth()
+    )
+    assert response.status_code == 422
+
+
+# Encryption
+
+
+def test_secret_box_round_trip() -> None:
+    box = SecretBox(os.urandom(32))
+    sealed = box.encrypt("glc_secret", b"row-1")
+    assert b"glc_secret" not in sealed
+    assert box.decrypt(sealed, b"row-1") == "glc_secret"
+    assert box.encrypt("glc_secret", b"row-1") != sealed  # fresh nonce each time
+
+
+def test_secret_box_rejects_other_row_or_key() -> None:
+    box = SecretBox(os.urandom(32))
+    sealed = box.encrypt("glc_secret", b"row-1")
+    with pytest.raises(InvalidTag):
+        box.decrypt(sealed, b"row-2")
+    with pytest.raises(InvalidTag):
+        SecretBox(os.urandom(32)).decrypt(sealed, b"row-1")
+
+
+@pytest.mark.parametrize("value", [None, "not base64!", "c2hvcnQ="])
+def test_encryption_key_must_be_32_bytes(
+    monkeypatch: pytest.MonkeyPatch, value: str | None
+) -> None:
+    if value is None:
+        monkeypatch.delenv("INTEGRATION_ENCRYPTION_KEY", raising=False)
+    else:
+        monkeypatch.setenv("INTEGRATION_ENCRYPTION_KEY", value)
+    with pytest.raises(RuntimeError):
+        integration_encryption_key()
+
+
+# POST /v1/integrations
+
+
+def test_creates_loki_integration(client: TestClient, integrations: MemoryIntegrations) -> None:
+    response = client.post("/v1/integrations", json=GRAFANA_CLOUD, headers=_auth())
+    assert response.status_code == 201
+    body = response.json()
+    assert body["config"] == {
+        "url": "https://logs-prod-012.grafana.net",
+        "service_label": "service_name",
+        "org_id": None,
+        "auth_type": "basic",
+        "username": "123456",
+    }
+    assert body["has_secret"] is True
+    assert body["status"] == "untested"
+    assert "glc_secret" not in response.text
+    assert integrations.created[0][0] == USER_ID
+
+
+def test_no_auth_has_no_secret(client: TestClient) -> None:
+    payload = _with(
+        config={"url": "https://loki.acme.com", "org_id": "acme-prod"}, auth={"type": "none"}
+    )
+    response = client.post("/v1/integrations", json=payload, headers=_auth())
+    assert response.status_code == 201
+    assert response.json()["has_secret"] is False
+    assert response.json()["config"]["org_id"] == "acme-prod"
+
+
+def test_bearer_token_is_not_returned(client: TestClient) -> None:
+    payload = _with(auth={"type": "bearer", "token": "eyJ-secret"})
+    response = client.post("/v1/integrations", json=payload, headers=_auth())
+    assert response.status_code == 201
+    assert response.json()["config"]["auth_type"] == "bearer"
+    assert "eyJ-secret" not in response.text
+
+
+def test_second_loki_integration_conflicts(client: TestClient) -> None:
+    assert client.post("/v1/integrations", json=GRAFANA_CLOUD, headers=_auth()).status_code == 201
+    response = client.post("/v1/integrations", json=GRAFANA_CLOUD, headers=_auth())
+    assert response.status_code == 409
+
+
+def test_requires_valid_token(client: TestClient, integrations: MemoryIntegrations) -> None:
+    response = client.post("/v1/integrations", json=GRAFANA_CLOUD)
+    assert response.status_code == 401
+    assert integrations.created == []
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://logs.example.com",
+        "https://localhost:3100",
+        "https://127.0.0.1",
+        "https://10.0.0.5",
+        "https://169.254.169.254",
+        "https://[::1]",
+        "https://user:pw@logs.example.com",
+        "https://logs.example.com?x=1",
+        "ftp://logs.example.com",
+        "logs.example.com",
+    ],
+)
+def test_rejects_unsafe_url(client: TestClient, url: str) -> None:
+    payload = _with(config={"url": url})
+    assert client.post("/v1/integrations", json=payload, headers=_auth()).status_code == 422
+
+
+def test_insecure_urls_allowed_in_local_dev(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ALLOW_INSECURE_INTEGRATION_URLS", "1")
+    payload = _with(config={"url": "http://localhost:3100"}, auth={"type": "none"})
+    assert client.post("/v1/integrations", json=payload, headers=_auth()).status_code == 201
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"kind": "datadog"},
+        {"auth": {"type": "basic", "username": "123456"}},
+        {"auth": {"type": "none", "token": "leftover"}},
+        {"auth": {"type": "oauth"}},
+        {"config": {"url": "https://loki.acme.com", "service_label": "bad-label"}},
+        {"config": {"url": "https://loki.acme.com", "password": "misplaced"}},
+        {"user_id": str(uuid4())},
+    ],
+)
+def test_rejects_invalid_payload(client: TestClient, changes: dict) -> None:
+    payload = _with(**changes)
+    assert client.post("/v1/integrations", json=payload, headers=_auth()).status_code == 422
+
+
+def test_validation_error_does_not_echo_secret(client: TestClient) -> None:
+    payload = _with(config={"url": "http://bad"})
+    response = client.post("/v1/integrations", json=payload, headers=_auth())
+    assert response.status_code == 422
+    assert "glc_secret" not in response.text
+
+
+def test_database_error_returns_500() -> None:
+    client = TestClient(_app_with(BrokenIntegrations()))
+    response = client.post("/v1/integrations", json=GRAFANA_CLOUD, headers=_auth())
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Could not save the integration."}
+
+
+# GET /v1/integrations
+
+
+def test_lists_only_own_integrations(client: TestClient, integrations: MemoryIntegrations) -> None:
+    assert client.get("/v1/integrations", headers=_auth()).json() == {"items": []}
+    integrations.create(uuid4(), LokiCreateRequest.model_validate(GRAFANA_CLOUD))
+    created = client.post("/v1/integrations", json=GRAFANA_CLOUD, headers=_auth()).json()
+    response = client.get("/v1/integrations", headers=_auth())
+    assert response.status_code == 200
+    assert response.json() == {"items": [created]}
+    assert "glc_secret" not in response.text
+
+
+def test_list_requires_valid_token(client: TestClient) -> None:
+    assert client.get("/v1/integrations").status_code == 401
+
+
+def test_list_database_error_returns_500() -> None:
+    client = TestClient(_app_with(BrokenIntegrations()))
+    response = client.get("/v1/integrations", headers=_auth())
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Could not list the integrations."}
+
+
+# PATCH /v1/integrations/{id}
+
+
+def _create(client: TestClient, payload: dict = GRAFANA_CLOUD) -> dict:
+    return client.post("/v1/integrations", json=payload, headers=_auth()).json()
+
+
+def test_update_config_keeps_secret(client: TestClient) -> None:
+    created = _create(client)
+    response = client.patch(
+        f"/v1/integrations/{created['id']}",
+        json={"config": {"url": "https://logs-prod-020.grafana.net/", "org_id": "acme"}},
+        headers=_auth(),
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["config"] == {
+        **created["config"],
+        "url": "https://logs-prod-020.grafana.net",
+        "org_id": "acme",
+    }
+    assert body["has_secret"] is True
+    assert body["id"] == created["id"]
+    assert client.get("/v1/integrations", headers=_auth()).json() == {"items": [body]}
+
+
+def test_update_can_clear_org_id(client: TestClient) -> None:
+    created = _create(client, _with(config={"url": "https://loki.acme.com", "org_id": "acme"}))
+    response = client.patch(
+        f"/v1/integrations/{created['id']}", json={"config": {"org_id": None}}, headers=_auth()
+    )
+    assert response.status_code == 200
+    assert response.json()["config"]["org_id"] is None
+
+
+def test_update_auth_replaces_credential(client: TestClient) -> None:
+    created = _create(client)
+    response = client.patch(
+        f"/v1/integrations/{created['id']}",
+        json={"auth": {"type": "bearer", "token": "eyJ-new"}},
+        headers=_auth(),
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["config"]["auth_type"] == "bearer"
+    assert "username" not in body["config"]
+    assert body["has_secret"] is True
+    assert "eyJ-new" not in response.text
+
+
+def test_update_to_no_auth_drops_secret(client: TestClient) -> None:
+    created = _create(client)
+    response = client.patch(
+        f"/v1/integrations/{created['id']}", json={"auth": {"type": "none"}}, headers=_auth()
+    )
+    assert response.status_code == 200
+    assert response.json()["has_secret"] is False
+    assert response.json()["config"]["auth_type"] == "none"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"config": {}},
+        {"config": {"url": None}},
+        {"config": {"service_label": None}},
+        {"config": {"url": "http://logs.example.com"}},
+        {"config": {"url": "https://10.0.0.5"}},
+        {"config": {"service_label": "bad-label"}},
+        {"config": {"password": "misplaced"}},
+        {"auth": {"type": "basic", "username": "123456"}},
+        {"kind": "loki", "config": {"org_id": "acme"}},
+    ],
+)
+def test_update_rejects_invalid_payload(client: TestClient, payload: dict) -> None:
+    created = _create(client)
+    response = client.patch(f"/v1/integrations/{created['id']}", json=payload, headers=_auth())
+    assert response.status_code == 422
+
+
+def test_cannot_update_other_users_integration(
+    client: TestClient, integrations: MemoryIntegrations
+) -> None:
+    other = uuid4()
+    theirs = integrations.create(other, LokiCreateRequest.model_validate(GRAFANA_CLOUD))
+    response = client.patch(
+        f"/v1/integrations/{theirs.id}", json={"config": {"org_id": "x"}}, headers=_auth()
+    )
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Integration not found."}
+    assert integrations.list(other).items == [theirs]
+
+
+def test_update_requires_valid_token(client: TestClient) -> None:
+    response = client.patch(f"/v1/integrations/{uuid4()}", json={"config": {"org_id": "x"}})
+    assert response.status_code == 401
+
+
+def test_update_database_error_returns_500() -> None:
+    client = TestClient(_app_with(BrokenIntegrations()))
+    response = client.patch(
+        f"/v1/integrations/{uuid4()}", json={"config": {"org_id": "x"}}, headers=_auth()
+    )
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Could not update the integration."}
+
+
+# DELETE /v1/integrations/{id}
+
+
+def test_deletes_integration(client: TestClient) -> None:
+    created = client.post("/v1/integrations", json=GRAFANA_CLOUD, headers=_auth()).json()
+    response = client.delete(f"/v1/integrations/{created['id']}", headers=_auth())
+    assert response.status_code == 204
+    assert response.content == b""
+    assert client.get("/v1/integrations", headers=_auth()).json() == {"items": []}
+    # The kind is free again.
+    assert client.post("/v1/integrations", json=GRAFANA_CLOUD, headers=_auth()).status_code == 201
+
+
+def test_cannot_delete_other_users_integration(
+    client: TestClient, integrations: MemoryIntegrations
+) -> None:
+    other = uuid4()
+    theirs = integrations.create(other, LokiCreateRequest.model_validate(GRAFANA_CLOUD))
+    response = client.delete(f"/v1/integrations/{theirs.id}", headers=_auth())
+    assert response.status_code == 404
+    assert integrations.list(other).items == [theirs]
+
+
+def test_delete_unknown_integration_returns_404(client: TestClient) -> None:
+    response = client.delete(f"/v1/integrations/{uuid4()}", headers=_auth())
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Integration not found."}
+
+
+def test_delete_rejects_malformed_id(client: TestClient) -> None:
+    assert client.delete("/v1/integrations/not-a-uuid", headers=_auth()).status_code == 422
+
+
+def test_delete_requires_valid_token(client: TestClient) -> None:
+    assert client.delete(f"/v1/integrations/{uuid4()}").status_code == 401
+
+
+def test_delete_database_error_returns_500() -> None:
+    client = TestClient(_app_with(BrokenIntegrations()))
+    response = client.delete(f"/v1/integrations/{uuid4()}", headers=_auth())
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Could not delete the integration."}

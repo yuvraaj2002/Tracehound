@@ -1,0 +1,33 @@
+[
+  {
+    "id": "dep-001",
+    "service": "payments-api",
+    "version": "2.8.2",
+    "previous_version": "2.8.1",
+    "deployed_at": "2026-10-15T13:40:00Z",
+    "author": "deploy-bot",
+    "commit": "a91c3e7",
+    "change_summary": "Fix currency rounding for JPY amounts",
+    "config_diff": {}
+  },
+  {
+    "id": "dep-002",
+    "service": "checkout-api",
+    "version": "1.14.0",
+    "previous_version": "1.13.4",
+    "deployed_at": "2026-10-15T13:52:00Z",
+    "author": "deploy-bot",
+    "commit": "5d2f0b1",
+    "change_summary": "Move database settings to environment-based config",
+    "config_diff": {
+      "DB_POOL_SIZE": {
+        "old": "20",
+        "new": "5"
+      },
+      "DB_POOL_TIMEOUT_S": {
+        "old": "30",
+        "new": "2"
+      }
+    }
+  }
+]

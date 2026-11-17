@@ -1,0 +1,86 @@
+/* Brand colors derive from Triage, Hypothesis and Deploy. Agent identity
+   colors are scoped to their own sections; neutral surfaces remain white. */
+:root {
+  --color-primary: #284b63;
+  --color-secondary: #70566f;
+  --color-tertiary: #8a6534;
+  --color-ink: #25272c;
+  --color-muted: #62656c;
+  --color-white: #ffffff;
+  --color-line: #e2e3e6;
+  --color-soft: #edf0f3;
+  --agent-triage: var(--color-primary);
+  --agent-logs: #aa4937;
+  --agent-metrics: #47734e;
+  --agent-dependency: #286f69;
+  --agent-deploy: var(--color-tertiary);
+  --agent-hypothesis: var(--color-secondary);
+  --color-bg: var(--color-white);
+  /* Type system: Switzer for everything, Geist Mono for code, Cabinet Grotesk
+     only for the wordmark. Use these tokens instead of raw values. */
+  --font-sans: 'Switzer', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-brand: 'Cabinet Grotesk', 'Switzer', sans-serif;
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 32px;
+  --text-heading: clamp(30px, 3.2vw, 46px);
+  --text-display: clamp(40px, 5.8vw, 88px);
+  --text-poster: clamp(58px, 12.5vw, 182px);
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --leading-tight: 1.1;
+  --leading-snug: 1.3;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+  --tracking-display: -.035em;
+  --tracking-tight: -.02em;
+  --tracking-label: .08em;
+  font-family: var(--font-sans);
+  font-weight: var(--weight-regular);
+  font-feature-settings: 'kern', 'liga';
+  color: var(--color-ink);
+  background: var(--color-white);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+/* Black theme, opt-in per page via data-theme="black" (only the signed-in home today).
+   Brand hues keep their identity but are lifted so they read on near-black.
+   --color-white stays the surface token, so it becomes the card color here. */
+[data-theme='black'] {
+  color-scheme: dark;
+  --color-bg: #0a0a0b;
+  --color-white: #141518;
+  --color-soft: #1d1f23;
+  --color-line: #2a2d32;
+  --color-ink: #ececee;
+  --color-muted: #9b9ea5;
+  --color-primary: #8db4d0;
+  --color-secondary: #c2a5c1;
+  --color-tertiary: #d6a96c;
+  --agent-logs: #e8876f;
+  --agent-metrics: #8cbf93;
+  --agent-dependency: #6fc1b8;
+  background: var(--color-bg);
+  color: var(--color-ink);
+}
+[data-theme='black'] .brand-symbol { filter: brightness(0) invert(.88); }
+/* Filled controls sit on the lifted brand colors, so their text flips to the dark page color. */
+[data-theme='black'] .button-primary, [data-theme='black'] .reveal-badge { color: var(--color-bg); }
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+html.lenis { scroll-behavior: auto; }
+body { margin: 0; min-width: 320px; }
+a { color: inherit; text-decoration: none; }
+button { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 5px; }
+::selection { background: var(--color-soft); color: var(--color-ink); }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation: none !important; transition: none !important; } }

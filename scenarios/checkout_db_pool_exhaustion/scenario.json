@@ -1,0 +1,13 @@
+{
+  "id": "checkout_db_pool_exhaustion",
+  "title": "Checkout requests failing and slow",
+  "description": "On-call paged for elevated 5xx and latency on checkout-api.",
+  "alert": {
+    "service_id": "checkout-api",
+    "symptom": "p95 latency above 2s and 5xx rate above 15% on POST /checkout",
+    "severity": "high",
+    "window_start": "2026-10-15T13:45:00Z",
+    "window_end": "2026-10-15T14:30:00Z",
+    "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736"
+  }
+}

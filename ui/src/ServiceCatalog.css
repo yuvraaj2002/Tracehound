@@ -1,0 +1,28 @@
+/* Landing: the service catalog. White section, line borders only (see DESIGN.md). */
+.catalog-intro { border-top: 1px solid var(--color-line); padding: 96px max(4.5%, calc((100% - 1376px)/2)); background: var(--color-white); }
+.catalog-intro-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 24px; margin-top: 48px; }
+.catalog-intro figure { margin: 0; min-width: 0; border: 1px solid var(--color-line); border-radius: 12px; background: var(--color-white); }
+.catalog-intro figcaption { display: flex; align-items: center; gap: 8px; padding: 14px 20px; border-bottom: 1px solid var(--color-line); font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-muted); }
+.catalog-intro figcaption > span { width: 8px; height: 8px; border-radius: 50%; background: var(--color-tertiary); }
+.catalog-intro-file pre { margin: 0; padding: 20px; overflow-x: auto; font-family: var(--font-mono); font-size: var(--text-xs); line-height: 1.7; color: var(--color-ink); }
+.catalog-intro-map figcaption { font-family: inherit; letter-spacing: var(--tracking-label); text-transform: uppercase; font-size: var(--text-2xs); }
+.catalog-intro-graph { display: block; width: 100%; height: auto; padding: 28px 24px; box-sizing: border-box; }
+.intro-wire { fill: none; stroke: var(--color-muted); stroke-width: 1.2; opacity: .6; color: var(--color-muted); }
+.intro-node rect { fill: var(--color-white); stroke-width: 1.2; }
+.intro-node.is-service rect { stroke: color-mix(in srgb, var(--color-primary) 45%, var(--color-white)); }
+.intro-node.is-resource rect { stroke: color-mix(in srgb, var(--agent-dependency) 50%, var(--color-white)); }
+.intro-node-name { font: var(--weight-medium) 11px var(--font-mono); fill: var(--color-ink); }
+.intro-node-note { font: 9px var(--font-sans); letter-spacing: .06em; text-transform: uppercase; fill: var(--color-muted); }
+.catalog-intro-points { list-style: none; margin: 0; padding: 0 24px 24px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; border-top: 1px solid var(--color-line); padding-top: 22px; }
+.catalog-intro-points h3 { margin: 0 0 6px; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--color-ink); }
+.catalog-intro-points p { margin: 0; font-size: var(--text-xs); line-height: var(--leading-relaxed); color: var(--color-muted); }
+
+@media (max-width: 1000px) {
+  .catalog-intro-body { grid-template-columns: 1fr; }
+}
+@media (max-width: 800px) {
+  .catalog-intro { padding: 56px 5%; }
+  .catalog-intro-body { margin-top: 30px; }
+  .catalog-intro-points { grid-template-columns: 1fr; gap: 14px; }
+  .catalog-intro-graph { padding: 20px 12px; }
+}

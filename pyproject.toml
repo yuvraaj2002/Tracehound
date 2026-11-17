@@ -1,0 +1,50 @@
+[project]
+name = "tracehound"
+version = "0.1.0"
+description = "Evidence-first multi-agent incident investigation for Python services"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "cryptography>=50.0.2",
+    "fastapi>=0.143.3",
+    "httpx>=0.28.1",
+    "langgraph>=1.2.16",
+    "ollama>=0.6.3",
+    "openai>=3.42.1",
+    "psycopg[binary,pool]>=3.3.6",
+    "pydantic>=2.14.1",
+    "pyjwt[crypto]>=2.15.1",
+    "python-dotenv>=1.2.4",
+    "pyyaml>=6.0.3",
+    "sqlalchemy>=2.0",
+    "tenacity>=9.2.1",
+    "torch>=2.14.1",
+    "transformers>=5.20.1",
+    "uvicorn>=0.54.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.0,<0.12"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "integration: tests that need external services (Postgres, Docker, etc.)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+    "ruff>=0.17.1",
+]

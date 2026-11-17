@@ -1,0 +1,51 @@
+{
+  "services": [
+    {
+      "id": "checkout-api",
+      "kind": "http",
+      "team": "checkout"
+    },
+    {
+      "id": "payments-api",
+      "kind": "http",
+      "team": "payments"
+    },
+    {
+      "id": "inventory-api",
+      "kind": "http",
+      "team": "inventory"
+    },
+    {
+      "id": "orders-db",
+      "kind": "postgres",
+      "team": "platform"
+    },
+    {
+      "id": "payments-db",
+      "kind": "postgres",
+      "team": "platform"
+    }
+  ],
+  "edges": [
+    {
+      "source": "checkout-api",
+      "target": "payments-api",
+      "protocol": "http"
+    },
+    {
+      "source": "checkout-api",
+      "target": "inventory-api",
+      "protocol": "http"
+    },
+    {
+      "source": "checkout-api",
+      "target": "orders-db",
+      "protocol": "postgres"
+    },
+    {
+      "source": "payments-api",
+      "target": "payments-db",
+      "protocol": "postgres"
+    }
+  ]
+}

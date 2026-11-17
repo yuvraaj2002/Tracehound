@@ -1,0 +1,27 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.coverage
+
+# Local secrets
+.env
+
+.claude/
+docs/build-in-public/
+
+# Saved pipeline runs
+runs/
+
+.DS_Store
+content/

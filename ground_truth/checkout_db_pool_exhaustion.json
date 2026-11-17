@@ -1,0 +1,51 @@
+{
+  "scenario_id": "checkout_db_pool_exhaustion",
+  "category": "config_change",
+  "root_cause": {
+    "service": "checkout-api",
+    "deploy_id": "dep-002",
+    "statement": "checkout-api 1.14.0 shrank the database connection pool from 20 to 5 and the acquire timeout from 30s to 2s.",
+    "mechanism": "Normal traffic needs about 8 concurrent connections. With a pool of 5 and no overflow, requests queue for a connection, time out after 2s and return 503."
+  },
+  "onset": "2026-10-15T13:55:00Z",
+  "key_evidence_ids": [
+    "dep-002",
+    "log-006",
+    "log-008",
+    "met-004",
+    "met-005",
+    "trc-005"
+  ],
+  "supporting_evidence_ids": [
+    "met-002",
+    "met-003",
+    "log-031",
+    "trc-002"
+  ],
+  "ruled_out": [
+    {
+      "hypothesis": "payments-api 2.8.2 deploy broke checkout",
+      "reason": "payments-api error rate stays flat, payment calls succeed, and the failing span is the DB pool acquire before any payments call.",
+      "evidence_ids": ["dep-001", "met-008", "log-017", "trc-005"]
+    },
+    {
+      "hypothesis": "orders-db is overloaded or slow",
+      "reason": "orders-db CPU and active connections drop after the deploy rather than rising.",
+      "evidence_ids": ["met-006", "met-007"]
+    },
+    {
+      "hypothesis": "Traffic spike exhausted capacity",
+      "reason": "checkout-api request rate is steady across the whole window.",
+      "evidence_ids": ["met-001"]
+    },
+    {
+      "hypothesis": "inventory-api cache misses slowed checkout",
+      "reason": "The cache-miss warnings appear before the incident at the same rate and the cache hit ratio is flat.",
+      "evidence_ids": ["log-003", "log-012", "met-009"]
+    }
+  ],
+  "safe_actions": [
+    "Roll back checkout-api to 1.13.4, or restore DB_POOL_SIZE=20 and DB_POOL_TIMEOUT_S=30.",
+    "Add a config check that blocks pool-size reductions without review."
+  ]
+}
