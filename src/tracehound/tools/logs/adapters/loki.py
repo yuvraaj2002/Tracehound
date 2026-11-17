@@ -43,23 +43,29 @@ class LokiLogSource(LogSource):
     * **Hard** — structured metadata ``detected_level`` ∈ warn|error|fatal|critical
     * **Soft** — other levels whose **line body** matches failure keywords
 
-    Results are merged and deduped. Lines that are JSON objects supply level, message and
-    trace ID; anything else is kept as the raw message. Loki has no line IDs, so each line gets
-    a stable ID hashed from its labels, timestamp and text.
+    Results are merged, capped to the ``limit`` most recent lines (default 2000), then
+    deduped. Each Loki call uses ``direction=backward`` so a truncated lane prefers newest
+    lines; after merge we keep the newest ``limit`` overall and return oldest→newest. Lines
+    that are JSON objects supply level, message and trace ID; anything else is kept as the
+    raw message. Loki has no line IDs, so each line gets a stable ID hashed from its labels,
+    timestamp and text.
     """
 
     def __init__(
         self,
         client: httpx.Client,
         service_label: str = "service_name",
-        limit: int = 5000,
+        limit: int = 2000,
     ) -> None:
         self._client = client  # base_url, auth headers and tenant (X-Scope-OrgID) set by caller
         self._service_label = service_label
         self._limit = limit
 
     def fetch(self, services: set[str], start: datetime, end: datetime) -> list[LogLine]:
-        """Dual-lane failure-biased lines from ``services`` in ``[start, end]``, oldest first."""
+        """Dual-lane failure-biased lines from ``services`` in ``[start, end]``, oldest first.
+
+        When the merged set exceeds ``limit``, only the newest ``limit`` lines are kept.
+        """
         if not services:
             return []
         # Backtick strings are raw in LogQL, so only regex metacharacters need escaping.
@@ -77,13 +83,18 @@ class LokiLogSource(LogSource):
         by_id = {line.id: line for line in self._query(hard_query, start, window_end)}
         for line in self._query(soft_query, start, window_end):
             by_id.setdefault(line.id, line)
-        return dedupe_by_message(sorted(by_id.values(), key=lambda line: line.timestamp))
+        # Newest-biased cap across both lanes, then present oldest→newest to the agent.
+        ordered = sorted(by_id.values(), key=lambda line: line.timestamp)
+        if len(ordered) > self._limit:
+            ordered = ordered[-self._limit :]
+        return dedupe_by_message(ordered)
 
     def _query(self, query: str, start: datetime, end: datetime) -> list[LogLine]:
         """Run one Loki ``query_range`` over ``[start, end)`` and map each hit to a ``LogLine``.
 
         ``end`` is exclusive here, matching Loki's API. Callers that want an inclusive window
-        should pass a timestamp just past the last moment they care about.
+        should pass a timestamp just past the last moment they care about. ``direction=backward``
+        makes Loki prefer the newest lines when ``limit`` truncates a lane.
         """
         response = self._client.get(
             "/loki/api/v1/query_range",
@@ -93,7 +104,7 @@ class LokiLogSource(LogSource):
                 "start": int(start.timestamp()) * 1_000_000_000 + start.microsecond * 1000,
                 "end": int(end.timestamp()) * 1_000_000_000 + end.microsecond * 1000,
                 "limit": self._limit,
-                "direction": "forward",
+                "direction": "backward",
             },
         )
         response.raise_for_status()

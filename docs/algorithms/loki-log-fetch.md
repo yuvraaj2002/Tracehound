@@ -26,7 +26,7 @@ triage → LogsAgent → LogSource.fetch(services, start, end)
 ## Locked v1 decisions
 
 - [x] Both inclusion lanes: structured WARN/ERROR **and** soft keyword matches on other lines
-- [x] Hard cap via Loki `limit` (start at 5000)
+- [x] Hard cap via Loki `limit` (default **2000**)
 - [x] Newest-biased fetch (`direction=backward`), then sort oldest→newest in Tracehound
 - [x] Elastic stays stubbed; same `LogSource.fetch` contract later
 - [ ] Keyword list finalized (see open items)
@@ -100,10 +100,14 @@ by line `id`, then dedupes. Shared newest-biased cap is A4.
 
 ### A4. Hard cap + direction
 
-- [ ] `limit` configurable (default `5000`)
-- [ ] Fetch with `direction=backward` (newest-biased when capped)
-- [ ] Sort results oldest→newest before returning from `fetch`
-- [ ] Unit/integration test: when over limit, retained lines are the newest slice of the window
+- [x] `limit` configurable (default `2000`)
+- [x] Fetch with `direction=backward` (newest-biased when capped)
+- [x] Sort results oldest→newest before returning from `fetch`
+- [x] Unit/integration test: when over limit, retained lines are the newest slice of the window
+
+**Behavior:** each lane query sends `limit` + `direction=backward`. After merge-by-id, if the
+combined set is larger than `limit`, keep only `ordered[-limit:]` (newest), then dedupe and
+return oldest→newest.
 
 ### A5. Map to `LogLine`
 
@@ -114,7 +118,7 @@ by line `id`, then dedupes. Shared newest-biased cap is A4.
 ### A6. Stage A acceptance
 
 - [ ] Live or recorded Loki fixture: dual-lane query returns failure-biased lines only
-- [ ] Cap behavior verified
+- [x] Cap behavior verified (unit: newest slice under `limit`)
 - [ ] Logs agent still receives `list[LogLine]` and can cite by `id`
 
 ---
@@ -145,9 +149,9 @@ Tracked in detail in `docs/logs-llm-context-budget.md`. High-level:
 
 1. [x] Write/adjust LogQL for hard lane (structured WARN/ERROR)
 2. [x] Add soft lane OR into the same query
-3. [ ] Switch fetch direction to backward; sort ascending after map
-4. [x] Confirm `limit` default + make keyword pattern a named constant
-5. [ ] Unit tests for lanes + cap/direction
+3. [x] Switch fetch direction to backward; sort ascending after map
+4. [x] Confirm `limit` default (2000) + make keyword pattern a named constant
+5. [x] Unit tests for lanes + cap/direction
 6. [ ] Update this checklist + short note in ADR/live-testing docs if query shape changes
 7. [ ] Only then: Stage B template dedupe
 8. [ ] Only then: Stage C rank/budget
@@ -178,6 +182,6 @@ Tracked in detail in `docs/logs-llm-context-budget.md`. High-level:
 ## Success criteria (Stage A done)
 
 - [ ] Loki fetch is dual-lane (structured severity ∪ keyword soft lane)
-- [ ] Volume is bounded by `limit` with intentional newest-bias under truncation
+- [x] Volume is bounded by `limit` with intentional newest-bias under truncation
 - [ ] Downstream still gets citeable `LogLine`s, oldest-first
 - [ ] This file’s Stage A boxes are checked; Stage B/C remain open

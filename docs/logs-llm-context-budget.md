@@ -12,7 +12,7 @@ Related code today:
 
 ## What we already do
 
-1. **Server-side narrow** — Loki dual-lane fetch: structured `detected_level=~warn|error|fatal|critical`, plus non-hard lines matching failure keywords (`error|exception|timeout|panic|fatal|critical`). Volume cap / newest-bias still pending.
+1. **Server-side narrow** — Loki dual-lane fetch: structured `detected_level=~warn|error|fatal|critical`, plus non-hard lines matching failure keywords (`error|exception|timeout|panic|fatal|critical`). Capped at the **2000 newest** lines (`direction=backward`, then oldest→newest).
 2. **Dedupe / cluster** — after mapping to `LogLine`, identical `message` values collapse to the first occurrence with an `occurrence` count.
 
 These reduce load; they do **not** guarantee the serialized `LogsContext` fits the model window.

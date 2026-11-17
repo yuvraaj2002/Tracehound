@@ -51,7 +51,8 @@ def test_fetches_warn_error_lines_in_inclusive_window_oldest_first() -> None:
     assert len(requests) == 2
     params = requests[0].url.params
     assert params["query"] == HARD_QUERY
-    assert params["direction"] == "forward"
+    assert params["direction"] == "backward"
+    assert params["limit"] == "2000"
     assert int(params["start"]) == BASE
     assert int(params["end"]) == int(END.timestamp()) * 1_000_000_000 + 1000  # inclusive end
 
@@ -62,6 +63,22 @@ def test_dual_lane_queries_hard_detected_level_and_soft_keywords() -> None:
     _source([], requests).fetch({"orders", "orders-db"}, START, END)
 
     assert [r.url.params["query"] for r in requests] == [HARD_QUERY, SOFT_QUERY]
+    assert all(r.url.params["direction"] == "backward" for r in requests)
+
+
+def test_over_limit_keeps_newest_slice_oldest_first() -> None:
+    """Stage A4: when merged volume exceeds limit, retain the newest N lines."""
+    requests: list[httpx.Request] = []
+    entries = [_entry(i, f"error: event {i}") for i in range(1, 6)]
+    lines = _source(entries, requests, limit=3).fetch({"orders"}, START, END)
+
+    assert [line.message for line in lines] == [
+        "error: event 3",
+        "error: event 4",
+        "error: event 5",
+    ]
+    assert all(r.url.params["limit"] == "3" for r in requests)
+    assert all(r.url.params["direction"] == "backward" for r in requests)
 
 
 def test_maps_json_fields_onto_log_line() -> None:
